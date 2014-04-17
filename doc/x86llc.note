@@ -1,0 +1,50 @@
+llc
+Passes.add(new TargetData(*Target.getTargetData()));
+Passes.add(createVerifierPass());
+
+Target.addPassesToEmitFile(Passes, *Out, FileType, Fast)
+
+
+
+
+X86TargetMachine::addPassesToEmitFile
+	PM.add(createLoopStrengthReducePass(&TLInfo));
+	PM.add(createLowerGCPass());//garbage collection intrinsics support
+	PM.add(createLowerInvokePass());
+	PM.add(createUnreachableBlockEliminationPass());
+
+	PM.createX86ISelDag() - new X86DAGToDAGISel(); //install an instruction selector
+	PM.createRegisterAllocator() // CreateLinearRegisterAllocator() - RA
+
+	PM.add(createX86FloatingPointStackifierPass());
+	// Insert prolog/epilog code.  Eliminate abstract frame index references...
+	PM.add(createPrologEpilogCodeInserter());
+	PM.add(createMachineCodeDeleter());
+
+
+
+X86DAGToDAGISel : SelectionDAGISel(X86Lowering),
+	X86Lowering(*TM.getTargetLowring()) {
+	Subtarget = &TM.getSubtarget<X86Subtarget>();
+}
+
+X86Lowering - This object fully describes how to lower LLVM code to an X86-specific SelectionDAG.
+
+
+SelectionDAGISel
+  1. PHI
+  2. Getptr
+  3. call SelectBasicBlock
+    3.1 BuildSelectionDAG
+	SelectionDAGLowering::visit(Instruction) - kill replica
+	deal with machine PHI nodes and constant
+	turn unordered chains into one factored node
+	SwithcCases
+    3.2 CodeGenAndEmitDAG(SelectionDAG &DAG)  ---
+	DAG.Combine DAGCombiner.Run
+	DAG.Legalize
+	DAG.Combine
+	InstructionSelectBasicBlock(DAG)
+    3.3 update PHI nodes in successors
+    3.4 Jump table
+    3.5 lower switch

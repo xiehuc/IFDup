@@ -1,0 +1,141 @@
+llvm-gcc calls gccas to do optimizations
+
+void AddConfiguredTransformationPasses(PassManager &PM) {
+  PM.add(createVerifierPass());                  // Verify that input is correct                                                                                
+  addPass(PM, createLowerSetJmpPass());          // Lower llvm.setjmp/.longjmp
+  addPass(PM, createFunctionResolvingPass());    // Resolve (...) functions
+                                                                                
+  // If the -strip-debug command line option was specified, do it.
+  if (StripDebug)
+    addPass(PM, createStripSymbolsPass(true));
+                                                                                
+  if (DisableOptimizations) return;
+                                                                                
+  addPass(PM, createRaiseAllocationsPass());     // call %malloc -> malloc inst
+  addPass(PM, createCFGSimplificationPass());    // Clean up disgusting code
+  addPass(PM, createPromoteMemoryToRegisterPass());// Kill useless allocas
+  addPass(PM, createGlobalOptimizerPass());      // Optimize out global vars
+  addPass(PM, createGlobalDCEPass());            // Remove unused fns and globs
+  addPass(PM, createIPConstantPropagationPass());// IP Constant Propagation
+  addPass(PM, createDeadArgEliminationPass());   // Dead argument elimination
+  addPass(PM, createInstructionCombiningPass()); // Clean up after IPCP & DAE
+  addPass(PM, createCFGSimplificationPass());    // Clean up after IPCP & DAE
+                                                                                
+  addPass(PM, createPruneEHPass());              // Remove dead EH info
+                                                                                
+  if (!DisableInline)
+    addPass(PM, createFunctionInliningPass());   // Inline small functions
+  addPass(PM, createSimplifyLibCallsPass());     // Library Call Optimizations
+  addPass(PM, createArgumentPromotionPass());    // Scalarize uninlined fn args
+                                                                                
+  addPass(PM, createRaisePointerReferencesPass());// Recover type information
+  addPass(PM, createTailDuplicationPass());      // Simplify cfg by copying code  addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
+  addPass(PM, createScalarReplAggregatesPass()); // Break up aggregate allocas
+  addPass(PM, createInstructionCombiningPass()); // Combine silly seq's
+  addPass(PM, createCondPropagationPass());      // Propagate conditionals
+                                                                                
+  addPass(PM, createTailCallEliminationPass());  // Eliminate tail calls
+  addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
+  addPass(PM, createReassociatePass());          // Reassociate expressions
+  addPass(PM, createLICMPass());                 // Hoist loop invariants
+  addPass(PM, createInstructionCombiningPass()); // Clean up after LICM/reassoc
+  addPass(PM, createIndVarSimplifyPass());       // Canonicalize indvars
+  addPass(PM, createLoopUnrollPass());           // Unroll small loops
+  addPass(PM, createInstructionCombiningPass()); // Clean up after the unroller
+  addPass(PM, createLoadValueNumberingPass());   // GVN for load instructions
+  addPass(PM, createGCSEPass());                 // Remove common subexprs
+  addPass(PM, createSCCPPass());                 // Constant prop with SCCP
+                                                                                
+  // Run instcombine after redundancy elimination to exploit opportunities
+  // opened up by them.
+  addPass(PM, createInstructionCombiningPass());
+  addPass(PM, createCondPropagationPass());      // Propagate conditionals
+                                                                                
+  addPass(PM, createDeadStoreEliminationPass()); // Delete dead stores
+  addPass(PM, createAggressiveDCEPass());        // SSA based 'Aggressive DCE'
+  addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
+  addPass(PM, createDeadTypeEliminationPass());  // Eliminate dead types
+  addPass(PM, createConstantMergePass());        // Merge dup global constants
+
+
+gccld 
+
+  if (Verify) Passes.add(createVerifierPass());
+                                                                                
+  // Add an appropriate TargetData instance for this module...
+  addPass(Passes, new TargetData("gccld", M));
+                                                                                
+  // Often if the programmer does not specify proper prototypes for the
+  // functions they are calling, they end up calling a vararg version of the
+  // function that does not get a body filled in (the real function has typed
+  // arguments).  This pass merges the two functions.
+  addPass(Passes, createFunctionResolvingPass());
+                                                                                
+  if (!DisableOptimizations) {
+    // Now that composite has been compiled, scan through the module, looking
+    // for a main function.  If main is defined, mark all other functions
+    // internal.
+    addPass(Passes, createInternalizePass(Internalize));
+                                                                                
+    // Now that we internalized some globals, see if we can hack on them!
+    addPass(Passes, createGlobalOptimizerPass());
+                                                                                
+    // Linking modules together can lead to duplicated global constants, only
+    // keep one copy of each constant...
+    addPass(Passes, createConstantMergePass());
+                                                                                
+    // Propagate constants at call sites into the functions they call.
+    addPass(Passes, createIPSCCPPass());
+                                                                                
+    // Remove unused arguments from functions...
+    addPass(Passes, createDeadArgEliminationPass());
+                                                                                
+    if (!DisableInline)
+      addPass(Passes, createFunctionInliningPass()); // Inline small functions
+                                                                                
+    addPass(Passes, createPruneEHPass());            // Remove dead EH info
+    addPass(Passes, createGlobalOptimizerPass());    // Optimize globals again.
+    addPass(Passes, createGlobalDCEPass());          // Remove dead functions
+                                                                                
+    // If we didn't decide to inline a function, check to see if we can
+    // transform it to pass arguments by value instead of by reference.
+    addPass(Passes, createArgumentPromotionPass());
+                                                                                
+    // The IPO passes may leave cruft around.  Clean up after them.
+    addPass(Passes, createInstructionCombiningPass());
+                                                                                
+    addPass(Passes, createScalarReplAggregatesPass()); // Break up allocas
+                                                                                
+    // Run a few AA driven optimizations here and now, to cleanup the code.
+    addPass(Passes, createGlobalsModRefPass());      // IP alias analysis
+                                                                                
+    addPass(Passes, createLICMPass());               // Hoist loop invariants
+    addPass(Passes, createLoadValueNumberingPass()); // GVN for load instrs
+    addPass(Passes, createGCSEPass());               // Remove common subexprs
+    addPass(Passes, createDeadStoreEliminationPass()); // Nuke dead stores
+                                                                                
+    // Cleanup and simplify the code after the scalar optimizations.
+    addPass(Passes, createInstructionCombiningPass());
+                                                                                
+    // Delete basic blocks, which optimization passes may have killed...
+    addPass(Passes, createCFGSimplificationPass());
+                                                                                
+    // Now that we have optimized the program, discard unreachable functions...
+    addPass(Passes, createGlobalDCEPass());
+  }
+                                                                                
+  // If the -s or -S command line options were specified, strip the symbols out
+  // of the resulting program to make it smaller.  -s and -S are GLD options
+  // that we are supporting.
+  if (StripLevel)
+    addPass(Passes, createStripSymbolsPass(StripLevel == 1));
+                                                                                
+  // Make sure everything is still good.
+  Passes.add(createVerifierPass());
+                                                                                
+  // Add the pass that writes bytecode to the output file...
+  addPass(Passes, new WriteBytecodePass(Out));
+                                                                                
+  // Run our queue of passes all at once now, efficiently.
+  Passes.run(*M);
+
