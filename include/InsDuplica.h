@@ -8,18 +8,18 @@
 #ifndef INSDUPLICA_H
 #define INSDUPLICA_H
 
-#include "llvm/Pass.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils/Local.h"
-#include "llvm/ADT/Statistic.h"
-#include "llvm/Function.h"
-#include "llvm/Instructions.h"
-#include "llvm/Instruction.h"
-#include "llvm/DerivedTypes.h"
-#include "llvm/Module.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/PostDominators.h"
-#include "llvm/Analysis/Dominators.h"
+#include <llvm/Pass.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Utils/Local.h>
+#include <llvm/ADT/Statistic.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Module.h>
+#include <llvm/Analysis/LoopInfo.h>
+#include <llvm/Analysis/PostDominators.h>
+#include <llvm/Analysis/Dominators.h>
 
 #include "RedundOPT.h"
 #include "SafeRegOPT.h"

@@ -9,12 +9,12 @@
 #ifndef SAFEREGOPT_H
 #define SAFEREGOPT_H
 
-#include "llvm/Value.h"
-#include "llvm/Instructions.h"
-#include "llvm/BasicBlock.h"
-#include "llvm/Support/CFG.h"
-#include "llvm/Function.h"
-#include "llvm/ADT/Statistic.h"
+#include <llvm/IR/Value.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/Support/CFG.h>
+#include <llvm/IR/Function.h>
+#include <llvm/ADT/Statistic.h>
 
 	
 #include <map>

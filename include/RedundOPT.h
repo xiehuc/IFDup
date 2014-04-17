@@ -15,10 +15,13 @@
 #include <llvm/ADT/Statistic.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/Analysis/PostDominators.h>
+#include <llvm/Analysis/Dominators.h>
 #include <llvm/Analysis/LoopInfo.h>
 
 #include <llvm/Support/CFG.h>
 #include <llvm/IR/Constants.h>
+
+#include <llvm/Support/raw_ostream.h>
 
 #include <map>
 #include <set>
@@ -130,12 +133,12 @@ namespace llvm {
 	bool getPropOrig(unsigned int t) {return isOrigList[t];}
 	
 	void dump_propCheck() {
-	    unsigned int s = propCheckList.size();
-	    std::cerr << "propCheckList:";
-	    for (unsigned int i = 0; i < s; i++) {
-		std::cerr << "<"<<propCheckList[i]->getName()<<",br("<<
-		    propToList[i]<<"),Orig("<< isOrigList[i]<<")>";		
-	    }
+		unsigned int s = propCheckList.size();
+		errs() << "propCheckList:";
+		for (unsigned int i = 0; i < s; i++) {
+			errs() << "<"<<propCheckList[i]->getName()<<",br("<<
+				propToList[i]<<"),Orig("<< isOrigList[i]<<")>";		
+		}
 	}
 	
       }; //end of class CheckBranch
