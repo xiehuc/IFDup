@@ -9,16 +9,16 @@
 #ifndef REDUNDOPT_H
 #define REDUNDOPT_H
 
-#include "llvm/Instruction.h"
-#include "llvm/Instructions.h"
-#include "llvm/Function.h"
-#include "llvm/ADT/Statistic.h"
-#include "llvm/DerivedTypes.h"
-#include "llvm/Analysis/PostDominators.h"
-#include "llvm/Analysis/LoopInfo.h"
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Function.h>
+#include <llvm/ADT/Statistic.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/Analysis/PostDominators.h>
+#include <llvm/Analysis/LoopInfo.h>
 
-#include "llvm/Support/CFG.h"
-#include "llvm/Constants.h"
+#include <llvm/Support/CFG.h>
+#include <llvm/IR/Constants.h>
 
 #include <map>
 #include <set>

@@ -19,7 +19,6 @@ find_package(LLVM)
 #
 #configure_file(config.h.in config.h)
 
-include_directories(include)
 add_subdirectory(lib)
 
 #add_subdirectory(src)
