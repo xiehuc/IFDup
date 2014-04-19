@@ -5,52 +5,55 @@
 //=======================================//
 
 #define Jing_DEBUG 1
+#define DEBUG_TYPE "par_if"
 
-#include "llvm/Pass.h"
-#include "llvm/Module.h"
-#include "llvm/DerivedTypes.h"
+#include <llvm/Pass.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/ADT/Statistic.h>
+#include <llvm/Support/raw_ostream.h>
 
-#include "ShortcutConstruct.h"
+#include "ShortcutDetector.h"
 #include <list>
 
 using namespace llvm;
 
 namespace {
-    class ParIFDuplica : public FunctionPass{ 
-	virtual bool runOnFunction(Function &F);
-	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-	    AU.addRequired<DominatorSet>();
-	}
+	class ParIFDuplica : public FunctionPass{ 
+		virtual bool runOnFunction(Function &F);
+		virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+			AU.addRequired<DominatorSet>();
+		}
 
-        private:
-	void IFDupPar(std::list<ChildrenSet*>*);
-	void DupImplement(std::list<ChildrenSet*>*);
-	bool inEdgesMarked(ChildrenSet *, std::set<Edge*>&);
-	void IFDupforNode(ChildrenSet *);
-	Instruction *findPosin(ChildrenSet *);
-	bool ImplementonEdge(Edge *,unsigned int,std::map<Value*,Value*>&,Instruction*);
-	BasicBlock* RepBlock(BasicBlock*,std::map<Value*,Value*>&,Instruction*,BasicBlock *);
-	void preRepBlock(BasicBlock*,std::map<Value*,Value*>&,Instruction*);
-	bool noEffect(Instruction*);
-	void replaceOperands(Instruction *,std::map<Value*,Value*>&,std::map<Value*,Value*>&);
-	void setbranchtoError(BranchInst *, unsigned int);
-        BasicBlock * buildErrorBlock(Function&);
-	void UpdateIncomeSource(BasicBlock *,BasicBlock *,BasicBlock*);
-	int localnumreplicatedBB;
-        bool canbecopied(Instruction*);
-	BasicBlock *errorBlock;
+		private:
+		void IFDupPar(std::list<ChildrenSet*>*);
+		void DupImplement(std::list<ChildrenSet*>*);
+		bool inEdgesMarked(ChildrenSet *, std::set<Edge*>&);
+		void IFDupforNode(ChildrenSet *);
+		Instruction *findPosin(ChildrenSet *);
+		bool ImplementonEdge(Edge *,unsigned int,std::map<Value*,Value*>&,Instruction*);
+		BasicBlock* RepBlock(BasicBlock*,std::map<Value*,Value*>&,Instruction*,BasicBlock *);
+		void preRepBlock(BasicBlock*,std::map<Value*,Value*>&,Instruction*);
+		bool noEffect(Instruction*);
+		void replaceOperands(Instruction *,std::map<Value*,Value*>&,std::map<Value*,Value*>&);
+		void setbranchtoError(BranchInst *, unsigned int);
+		BasicBlock * buildErrorBlock(Function&);
+		void UpdateIncomeSource(BasicBlock *,BasicBlock *,BasicBlock*);
+		int localnumreplicatedBB;
+		bool canbecopied(Instruction*);
+		BasicBlock *errorBlock;
 
-        public:
-	void DEBUG_outputsethead(ChildrenSet*, std::set<ChildrenSet*>*);
-    }; //end of functionpass
+		public:
+		void DEBUG_outputsethead(ChildrenSet*, std::set<ChildrenSet*>*);
+	}; //end of functionpass
 
-    static  Statistic<> NumReplicatedBB("numreplicatedBB", "Number of replicated BBs");
 
+	STATISTIC(NumReplicatedBB, "Number of replicated BBs");
 }
 
 //register to OPT pass
 namespace {
- RegisterOpt<ParIFDuplica> X("ParIFDup", "Partially Duplicate IF");
+ RegisterPass<ParIFDuplica> X("ParIFDup", "Partially Duplicate IF", false, true);
 }
 
 
@@ -60,63 +63,68 @@ namespace {
 //////////////////////////////
 bool ParIFDuplica::runOnFunction(Function &F) {
 
-    localnumreplicatedBB = 0;
-    //get DominatorSet
-    DominatorSet &dominset_use = getAnalysis<DominatorSet>();
+	localnumreplicatedBB = 0;
+	//get DominatorSet
+	DominatorSet &dominset_use = getAnalysis<DominatorSet>();
 
-    //get SCHeadNodeList
-    ShortcutDetectorPass *SCDetectorPass = new ShortcutDetectorPass();
-    std::list<ChildrenSet*> *HeadNodeList = SCDetectorPass->runOnFunction(F,dominset_use);
+	//get SCHeadNodeList
+	ShortcutDetectorPass *SCDetectorPass = new ShortcutDetectorPass();
+	SCDetectorPass->runOnFunction(F);
+	std::list<ChildrenSet*> HeadNodeList_ = SCDetectorPass->getHeadNodeList();
+	std::list<ChildrenSet*> *HeadNodeList = &HeadNodeList_;
 
-    if (!HeadNodeList->empty()) {
-	//Partially duplicate IF
-	IFDupPar(HeadNodeList);
+	if (!HeadNodeList->empty()) {
+		//Partially duplicate IF
+		IFDupPar(HeadNodeList);
 
-	//we can check what's going on on the edges
-	SCDetectorPass->dumpShortcut(*HeadNodeList);
+		//we can check what's going on on the edges
+		SCDetectorPass->dumpShortcut(*HeadNodeList);
 
-	//well then, implement the duplicas in LLVM code
-	errorBlock = buildErrorBlock(F);
+		//well then, implement the duplicas in LLVM code
+		errorBlock = buildErrorBlock(F);
 #ifdef Jing_DEBUG
-	//std::cerr << "errorBlock was set to be " << errorBlock->getName() <<"\n";
+		//std::cerr << "errorBlock was set to be " << errorBlock->getName() <<"\n";
 #endif
-	DupImplement(HeadNodeList);
+		DupImplement(HeadNodeList);
 
 #ifdef Jing_DEBUG_EXIT
-   //==========================test exit===========
-  std::string exitName = "exit";
-  std::vector<const Type*> ArgTys;
-  ArgTys.push_back(Type::IntTy);
-  FunctionType *exitType = FunctionType::get(Type::VoidTy, ArgTys,false);
- Function *callfun = F.getParent()->getFunction(exitName,exitType);
- BasicBlock *firstB = &F.front();
- std::cerr << "firstB on F is " << firstB->getName() <<"\n";
- ConstantSInt *const_3 = ConstantSInt::get(Type::IntTy,-23);
- std::string fakecallName = "";
- Instruction *lastI = firstB->getTerminator();
-  Instruction * fakenewCall = new CallInst(callfun,const_3,fakecallName,lastI);
-  ///////=========end of test exit===========
+		//==========================test exit===========
+		std::string exitName = "exit";
+		std::vector<const Type*> ArgTys;
+		ArgTys.push_back(Type::IntTy);
+		FunctionType *exitType = FunctionType::get(Type::VoidTy, ArgTys,false);
+		Function *callfun = F.getParent()->getFunction(exitName,exitType);
+		BasicBlock *firstB = &F.front();
+		std::cerr << "firstB on F is " << firstB->getName() <<"\n";
+		ConstantSInt *const_3 = ConstantSInt::get(Type::IntTy,-23);
+		std::string fakecallName = "";
+		Instruction *lastI = firstB->getTerminator();
+		Instruction * fakenewCall = new CallInst(callfun,const_3,fakecallName,lastI);
+		///////=========end of test exit===========
 #endif
 
-  std::cerr << "local replicated BB: " << localnumreplicatedBB<<"\n\n";
-    } 
+		errs() << "local replicated BB: " << localnumreplicatedBB<<"\n\n";
+	} 
 #ifdef Jing_DEBUG
-     else { std::cerr << "no change was made to " << F.getName()<<"\n";}
+	else { errs() << "no change was made to " << F.getName()<<"\n";}
 #endif
 
-    return true;
+	return true;
 }
 
 BasicBlock *ParIFDuplica::buildErrorBlock(Function &F) {
   //the error block is inserted at the end
-  BasicBlock *EB = new BasicBlock(F.getName()+"_Error",&F); 
+  LLVMContext& C = F.getContext();
+  BasicBlock *EB = BasicBlock::Create(C, F.getName()+"_Error", &F); 
 
  //insert the void exit(int) function to the module
-  std::string exitName = "exit";
-  std::vector<const Type*> ArgTys;
-  ArgTys.push_back(Type::IntTy);
-  FunctionType *exitType = FunctionType::get(Type::VoidTy, ArgTys,false);
-  Function *callfun = F.getParent()->getFunction(exitName,exitType);
+  StringRef exitName = "exit";
+  llvm::SmallVector<Type*,3> ArgTys;
+  //std::vector<const Type*> ArgTys;
+  //FIXME : xiehuc , don't know integer bitwidth
+  ArgTys.push_back(Type::getInt32Ty(C));
+  FunctionType *exitType = FunctionType::get(Type::getVoidTy(C), ArrayRef<Type*>(ArgTys), false);
+  Function *callfun = F.getParent()->getFunction(exitName);
  
   if (callfun) {
 #ifdef Jing_DEBUG
@@ -274,13 +282,13 @@ void ParIFDuplica::IFDupforNode(ChildrenSet *curNode) {
 
 //for debug purpose
 void ParIFDuplica::DEBUG_outputsethead(ChildrenSet *SCHead, std::set<ChildrenSet*> *midnodeset){
-    std::cerr << "===output sethead for " << SCHead->getBB()->getName() <<"===\n";
-    std::set<ChildrenSet*>::iterator iter;
-    for (iter=midnodeset->begin(); iter!=midnodeset->end(); iter++) {
-	ChildrenSet * midNode = *iter;
-	std::cerr << " " << midNode->getBB()->getName();
-    }
-    std::cerr<< "\n";
+	errs() << "===output sethead for " << SCHead->getBB()->getName() <<"===\n";
+	std::set<ChildrenSet*>::iterator iter;
+	for (iter=midnodeset->begin(); iter!=midnodeset->end(); iter++) {
+		ChildrenSet * midNode = *iter;
+		errs() << " " << midNode->getBB()->getName();
+	}
+	errs()<< "\n";
 }
 
 

@@ -187,18 +187,19 @@ namespace {
     //////////////////////////////////////
 class ShortcutDetectorPass : public FunctionPass {
 
+	public:
 	virtual bool runOnFunction(Function &F);
 
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const{
 		AU.addRequired<DominatorSet>();
 		AU.setPreservesAll();
 	}
+	void dumpShortcut (std::list<ChildrenSet*> &headlist);
 
 	private:
 	bool isTwowayBranch (BasicBlock *BB);
 	bool isOnlyBranch (BasicBlock *BB);
 	bool isJumpBack (BasicBlock *BB, BasicBlock *Target);
-	void dumpShortcut (std::list<ChildrenSet*> &headlist);
 	bool hasBackEdge(BasicBlock *BB);
 	int localshortcut, localSCset, localFailed;
 	DominatorSet *dominset;
