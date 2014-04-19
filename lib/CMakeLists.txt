@@ -9,8 +9,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${LLVM_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${LLVM_CPP_FLAGS}")
 
 add_library(IFDup SHARED
-	InsDuplica/InsDuplica.cpp
-	InsDuplica/RedundAnalysis.cpp
-	ParIFDuplica/ParIFDuplica.cpp
 	ShortcutDetector/ShortcutDetector.cpp
+	ParIFDuplica/ParIFDuplica.cpp
+	InsDuplica/RedundAnalysis.cpp
+	InsDuplica/InsDuplica.cpp
 	)

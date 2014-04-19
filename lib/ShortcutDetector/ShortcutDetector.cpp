@@ -10,14 +10,24 @@
 //================================================//
 #define Jing_DEBUG 1
 
+#define DEBUG_TYPE "shortcut"
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 #include "ShortcutDetector.h"
+#include <llvm/ADT/Statistic.h>
+#include <llvm/Support/raw_ostream.h>
 
 using namespace llvm;
 
+////////////////////////////////
+//struct DominatorSet; 
+STATISTIC(NumShortcut, "Number of shortcut branches detected");
+STATISTIC(NumShortcutSet, "Number of shortcut branche SETs detected");
+
+char ShortcutDetectorPass::ID = 0;
+
 namespace {
- RegisterOpt<ShortcutDetectorPass> X("shortcutDT", "Detect Shortcut");
+	RegisterPass<ShortcutDetectorPass> X("shortcutDT", "Detect Shortcut", false, true);
 }
 
 /////////////////////////////////////////
@@ -138,7 +148,7 @@ bool ShortcutDetectorPass::runOnFunction(Function &F) {
    localSCset = 0;
    localFailed = 0;
 
-   std::cerr << "**********func: " << F.getName() << " ********\n";
+   errs() << "**********func: " << F.getName() << " ********\n";
 
    /*leafset: The set of basic blocks that satisfy any one of the following conditions  
       - not two-way branch
@@ -166,16 +176,16 @@ bool ShortcutDetectorPass::runOnFunction(Function &F) {
 
    //debug - let's see what are contents in leafset and nodeset
 #ifdef Jing_DEBUG
-   std::cerr << "DEBUG::: let's dump leafset...\n";
+   errs() << "DEBUG::: let's dump leafset...\n";
    std::set<BasicBlock*>::iterator setI;
    for (setI = leafset.begin(); setI != leafset.end(); ++setI) {
-      std::cerr << (*setI)->getName() << "  ";
+      errs() << (*setI)->getName() << "  ";
    }
-   std::cerr << "\nDEBUG:: let's dump nodeset...\n";
+   errs() << "\nDEBUG:: let's dump nodeset...\n";
    for (setI = nodeset.begin(); setI != nodeset.end(); ++setI) {
-      std::cerr << (*setI)->getName() << "  ";
+      errs() << (*setI)->getName() << "  ";
    }
-   std::cerr << "\n";
+   errs() << "\n";
 #endif
    //end of debug
 
@@ -611,7 +621,7 @@ ChildrenSet::dump(std::string prefix, std::set<ChildrenSet*>*midNodesforthisSet,
   std::string mystring (prefix);
   mystring += "-";
   //information about myself
-  mystring += myBB->getName() + " L(" + itos(level)+")" ;
+  mystring += myBB->getName().str() + " L(" + itos(level)+")" ;
   if (isHead()) mystring += " (Head)";
   if (haveSC) mystring += " (haveSC) path(" + listtos(mySCpath) +")";
   if (isleftSC) mystring += " (isleftSC)";
@@ -625,12 +635,12 @@ ChildrenSet::dump(std::string prefix, std::set<ChildrenSet*>*midNodesforthisSet,
       mystring+=out0->dump(prefix)+out1->dump(prefix);
   //information about children
   if (leftchildBB) 
-     mystring += prefix+ " |" + leftchildBB->getName() + " (leaf)\n"; 
+     mystring += prefix+ " |" + leftchildBB->getName().str() + " (leaf)\n"; 
   else 
      mystring += leftchildrenset->dump(prefix+" |", midNodesforthisSet,thissetHead); 
 
   if (rightchildBB)
-     mystring += prefix + "  " +rightchildBB->getName() + " (leaf)\n";
+     mystring += prefix + "  " +rightchildBB->getName().str() + " (leaf)\n";
   else 
      mystring += rightchildrenset->dump(prefix+"  ",midNodesforthisSet,thissetHead);
   }
@@ -642,21 +652,21 @@ void
 ChildrenSet::dump() {
   assert(head && "Error:dump() should be only called for head nodes"); 
   std::set<ChildrenSet*> *midNodesforthisSet = SCmidnodeset;
-  std::cerr << "----Dump start from " << myBB->getName() << "------\n";
-  std::cerr<< dump(" ", midNodesforthisSet,this) << "\n";
+  errs() << "----Dump start from " << myBB->getName() << "------\n";
+  errs() << dump(" ", midNodesforthisSet,this) << "\n";
 }
 
 
 bool 
 ChildrenSet::verify_domination(DominatorSet *dominset){
-    assert(head && "Error: verify_domination() should only be called by head");
-    std::set<ChildrenSet*>::iterator iter;
+	assert(head && "Error: verify_domination() should only be called by head");
+	std::set<ChildrenSet*>::iterator iter;
 
-    for (iter=SCmidnodeset->begin(); iter!=SCmidnodeset->end(); iter++) {
-	BasicBlock *childBB = (*iter)->getBB();
-	if (!(dominset->dominates(myBB, childBB))) return false;
-    }
-    return true;
+	for (iter=SCmidnodeset->begin(); iter!=SCmidnodeset->end(); iter++) {
+		BasicBlock *childBB = (*iter)->getBB();
+		if (!(dominset->dominates(myBB, childBB))) return false;
+	}
+	return true;
 }
 
 
@@ -705,12 +715,11 @@ Edge::Edge(ChildrenSet *from, ChildrenSet *to) {
 
 std::string 
 Edge::dump(std::string prefix) {
-	 std::string s(prefix);
-	 s += "  Edge("+ fromNode->getBB()->getName()+"->"+toNode->getName()+") ";
-	 s+="propgtRep:"+dump(propgtRep)+";";
-	 s+="fixRep:"+dump(fixRep)+"\n";
-	 return s;
-
-     }
+	std::string s(prefix);
+	s += "  Edge("+ fromNode->getBB()->getName().str()+"->"+toNode->getName().str()+") ";
+	s+="propgtRep:"+dump(propgtRep)+";";
+	s+="fixRep:"+dump(fixRep)+"\n";
+	return s;
+}
 
 

@@ -5,15 +5,13 @@
 #ifndef SHORTCUTDETECTOR_H
 #define SHORTCUTDETECTOR_H
 
-#include "llvm/Pass.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils/Local.h"
-#include "llvm/ADT/Statistic.h"
-#include "llvm/Function.h"
-#include "llvm/Instructions.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/Analysis/Dominators.h"
-//#include "llvm/Support/Debug.h"
+#include <llvm/Pass.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Utils/Local.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/ADT/STLExtras.h>
+#include "llvm/Dominators.h"
 
 #include <set>
 #include <string>
@@ -27,20 +25,20 @@ using namespace llvm;
 
 namespace {
 
-    class ChildrenSet;
+	class ChildrenSet;
 
-    class Rep {
-    public:
+	class Rep {
+	public:
 	Rep(BasicBlock *baseBB, bool trueside) {
-	    mybaseBB = baseBB;
-	    isOntrueside = trueside;
-	    mynotTo = NULL;
+		mybaseBB = baseBB;
+		isOntrueside = trueside;
+		mynotTo = NULL;
 	}
 
 	Rep(BasicBlock *baseBB, bool trueside, BasicBlock* notTo) {
-	    mybaseBB = baseBB;
-	    isOntrueside = trueside;
-	    mynotTo = notTo;
+		mybaseBB = baseBB;
+		isOntrueside = trueside;
+		mynotTo = notTo;
 	}
 	/* --ugly. hope it will not be used
 	Rep(Rep &duplica) {
@@ -49,27 +47,27 @@ namespace {
 	    mynotTo = duplica.getnotTo();
 	}
 	*/
-    private:
+	private:
 	BasicBlock *mybaseBB; //BB to be replicated
 	bool isOntrueside; //if this replica is on true side
 	BasicBlock *mynotTo; //not propagate to the edge that has notTo as destination
 
-    public:
+	public:
 	bool getOntrueside() {return isOntrueside;}
 	BasicBlock *getnotTo(){return mynotTo;}
 	BasicBlock *getBB() {return mybaseBB;}
 
-        bool notTo(BasicBlock *target) {return (mynotTo == target);}
+	bool notTo(BasicBlock *target) {return (mynotTo == target);}
 	bool notTo(ChildrenSet *target);
 
 	std::string dump() {
-	    std::string s;
-	    s+="Rep("+mybaseBB->getName()+",";
-	    s+=(isOntrueside?"T,":"F,");
-	    if (mynotTo) s+="Not("+mynotTo->getName()+")";
-	    return s;
+		std::string s;
+		s+="Rep("+mybaseBB->getName().str()+",";
+		s+=(isOntrueside?"T,":"F,");
+		if (mynotTo) s+="Not("+mynotTo->getName().str()+")";
+		return s;
 	}
-    }; //end of struct Rep
+}; //end of struct Rep
 
 
     ///////////////////////////////////////
@@ -123,10 +121,6 @@ namespace {
     };//end of struct Edge
 
  /////////////////////////////////
- ////////////////////////////////
- //struct DominatorSet; 
- Statistic<> NumShortcut("numshortcut", "Number of shortcut branches detected");
- Statistic<> NumShortcutSet("numshortcutset", "Number of shortcut branche SETs detected");
 
 
   class ChildrenSet {
@@ -191,33 +185,36 @@ namespace {
 
     //////////////////////////////////////
     //////////////////////////////////////
- class ShortcutDetectorPass : public FunctionPass {
-    virtual bool runOnFunction(Function &F);
+class ShortcutDetectorPass : public FunctionPass {
 
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const{
-	AU.addRequired<DominatorSet>();
-        AU.setPreservesAll();
-    }
+	virtual bool runOnFunction(Function &F);
 
-   private:
-     bool isTwowayBranch (BasicBlock *BB);
-     bool isOnlyBranch (BasicBlock *BB);
-     bool isJumpBack (BasicBlock *BB, BasicBlock *Target);
-     void dumpShortcut (std::list<ChildrenSet*> &headlist);
-     bool hasBackEdge(BasicBlock *BB);
-     int localshortcut, localSCset, localFailed;
-     DominatorSet *dominset;
-     void conSCSetMap(std::set<BasicBlock*>&, std::set<BasicBlock*>& ,std::map<BasicBlock*,ChildrenSet*>&);
-     void BuildHeadNodeList (std::map<BasicBlock*,ChildrenSet*>&, Function &);
-     void ClearUselessNodesin (std::map<BasicBlock*,ChildrenSet*>&, std::list<ChildrenSet*>&); 
-     bool verify_domination(ChildrenSet *);
-     std::list<ChildrenSet*> HeadNodeList;
-     void conEdgeGraph(std::list<ChildrenSet*>&);
-    
- public:
- std::list<ChildrenSet*> getHeadNodeList() {return HeadNodeList;}
+	virtual void getAnalysisUsage(AnalysisUsage &AU) const{
+		AU.addRequired<DominatorSet>();
+		AU.setPreservesAll();
+	}
 
- };
+	private:
+	bool isTwowayBranch (BasicBlock *BB);
+	bool isOnlyBranch (BasicBlock *BB);
+	bool isJumpBack (BasicBlock *BB, BasicBlock *Target);
+	void dumpShortcut (std::list<ChildrenSet*> &headlist);
+	bool hasBackEdge(BasicBlock *BB);
+	int localshortcut, localSCset, localFailed;
+	DominatorSet *dominset;
+	void conSCSetMap(std::set<BasicBlock*>&, std::set<BasicBlock*>& ,std::map<BasicBlock*,ChildrenSet*>&);
+	void BuildHeadNodeList (std::map<BasicBlock*,ChildrenSet*>&, Function &);
+	void ClearUselessNodesin (std::map<BasicBlock*,ChildrenSet*>&, std::list<ChildrenSet*>&); 
+	bool verify_domination(ChildrenSet *);
+	std::list<ChildrenSet*> HeadNodeList;
+	void conEdgeGraph(std::list<ChildrenSet*>&);
+
+	public:
+	static char ID;
+	ShortcutDetectorPass():FunctionPass(ID) {}
+	std::list<ChildrenSet*> getHeadNodeList() {return HeadNodeList;}
+
+};
 
 }
 
