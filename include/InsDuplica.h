@@ -40,12 +40,14 @@ namespace llvm {
 
   class InsDuplica : public FunctionPass  {
   public:
-	 virtual void getAnalysisUsage (AnalysisUsage &AU) const {
-	     AU.addRequired<PostDominatorSet>();
-	     AU.addRequired<DominatorSet>();
-//	     AU.addRequired<DominatorTree>();
-		 AU.addRequired<LoopInfo>();
-	 }
+	  virtual void getAnalysisUsage (AnalysisUsage &AU) const {
+		  //FIXME xiehuc
+		  //AU.addRequired<PostDominatorSet>();
+		  //AU.addRequired<DominatorSet>();
+		  AU.addRequired<PostDominatorTree>();
+		  AU.addRequired<DominatorTree>();
+		  AU.addRequired<LoopInfo>();
+	  }
 
 	virtual bool runOnFunction(Function &F);
 
@@ -118,7 +120,8 @@ namespace llvm {
 	//For advanced register safe optimization
 	SafeRegMap *safeRegMap;
 
-	DominatorSet *dominset;  // pointer to DominatorSet
+	//FIXME : xiehuc
+	DominatorTree *domintree;  // pointer to DominatorSet
 	SafeRegforBB *curSafeRegs;  // safe reg sets for current BB
 
   }; //end of class InsDuplica
@@ -130,9 +133,12 @@ namespace llvm {
   };
 
       
-      static Statistic<> NumInsDup("numinsdup", "Number of generated instructions");
-      static Statistic<> NumBBChecker("numBBchecker", "Number of generated branch checker BBs");
-      static Statistic<> NumStoreChecker("numStorechecker", "Number of generated store checker BBs");      
+
+#if 0
+      static Statistic NumInsDup("numinsdup", "Number of generated instructions");
+      static Statistic NumBBChecker("numBBchecker", "Number of generated branch checker BBs");
+      static Statistic NumStoreChecker("numStorechecker", "Number of generated store checker BBs");      
+#endif
 
 	
   }//end of namespace

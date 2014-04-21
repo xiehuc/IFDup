@@ -261,11 +261,13 @@ namespace llvm {
 
 	  //interface
 	  void SetUpTable(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCheckedAtMap, Function &F);
-	  void removeOverlap(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCheckedAtMap, Function &F, PostDominatorSet &postdominSet);
+	  // FIXME: xiehuc
+	  //void removeOverlap(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCheckedAtMap, Function &F, PostDominatorSet &postdominSet);
 	  void rmSafeReg(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCheckedAtMap, Function &F);
 	  void printStatforTotal(Function &F);
 	  void rmLoopIV(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCheckedAtMap, Function &F, LoopInfo &loopinfo);
-	  void checkADVRegSafe(DominatorSet *dominset);
+	  //FIXME: xiehuc
+	  //void checkADVRegSafe(DominatorSet *dominset);
 
 
       private:
@@ -298,7 +300,8 @@ namespace llvm {
 	  void SetupTablewithCall(CallInst*, BasicBlock*, enum CHECKTYPE);
 	  void SetUpTablewithOP(CheckCode*, Value*, Instruction*,enum CHECKTYPE);
 	  //for remove overlap
-	  bool removeOverlapOnValue(Value*v,ValueCheckedAt*checkatTable,PostDominatorSet &postdominSet);
+	  //FIXME: xiehuc
+	  //bool removeOverlapOnValue(Value*v,ValueCheckedAt*checkatTable,PostDominatorSet &postdominSet);
 
 	  //for load address decomposition
 	  void DecomposeAddress(std::set<Value*>&valueSet, Value *addrP);
@@ -311,7 +314,8 @@ namespace llvm {
 
 	  //for advanced reg safe
 	  bool reg_safe;
-	  DominatorSet *DominSet;
+	  //FIXME xiehuc
+	  //DominatorSet *DominSet;
 
 	  //for loop iv
 	  void getInnermostLoop(std::list<Loop*>&innermostLoops, Function &F,LoopInfo &loopinfo);

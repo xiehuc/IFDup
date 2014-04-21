@@ -1,4 +1,3 @@
-//-----Developed by Jing Yu--------------//
 //   ParIFDuplica.cpp                  //
 //=======================================//
 //Partially duplicate comparisons in IFs     //
@@ -44,6 +43,8 @@ namespace {
 		BasicBlock *errorBlock;
 
 		public:
+		static char ID;
+		ParIFDuplica():FunctionPass(ID){}
 		void DEBUG_outputsethead(ChildrenSet*, std::set<ChildrenSet*>*);
 	}; //end of functionpass
 
@@ -56,7 +57,7 @@ namespace {
  RegisterPass<ParIFDuplica> X("ParIFDup", "Partially Duplicate IF", false, true);
 }
 
-
+char ParIFDuplica::ID = 0;
 
 //////////////////////////////
 //ParIFDuplica Class      ///
@@ -124,7 +125,7 @@ BasicBlock *ParIFDuplica::buildErrorBlock(Function &F) {
   //FIXME : xiehuc , don't know integer bitwidth
   ArgTys.push_back(Type::getInt32Ty(C));
   FunctionType *exitType = FunctionType::get(Type::getVoidTy(C), ArrayRef<Type*>(ArgTys), false);
-  Function *callfun = F.getParent()->getFunction(exitName);
+  Constant* callfun = F.getParent()->getFunction(exitName);
  
   if (callfun) {
 #ifdef Jing_DEBUG
@@ -140,9 +141,9 @@ BasicBlock *ParIFDuplica::buildErrorBlock(Function &F) {
  }
 
   //add call Inst to EB
-  ConstantSInt *const_23 = ConstantSInt::get(Type::IntTy,-23);
+  ConstantInt *const_23 = ConstantInt::get(Type::getInt32Ty(C),-23);
   std::string callName = "";
-  Instruction * newCall = new CallInst(callfun,const_23,callName,EB);
+  Instruction* newCall = CallInst::Create(callfun, const_23, callName, EB);
 
   /* 
   //still has to place a dummy ret there
@@ -151,7 +152,7 @@ BasicBlock *ParIFDuplica::buildErrorBlock(Function &F) {
   Instruction *dummy_ret = new ReturnInst(retValue,EB);  
   */
 
-  Instruction * endinst = new UnreachableInst(EB);
+  Instruction * endinst = new UnreachableInst(C, EB);
   return EB;
 }
 
@@ -215,13 +216,16 @@ void ParIFDuplica::IFDupPar(std::list<ChildrenSet*> *HeadNodeList){
 bool ParIFDuplica::inEdgesMarked(ChildrenSet *node, std::set<Edge*>& MarkedEdge) {
     //If this node has only one incoming edge, it means all its incoming edge has been accessed.
     if (node->inEdges->size()<=1) return true;
+	 //FIXME : xiehuc node->inEdges is Edge; while iter is Edge*
+	 //which is correct?
     std::list<Edge*>::iterator iter;
 
-    for (iter = node->inEdges->begin(); iter != node->inEdges->end(); iter++) {
-	Edge * inedge = *iter;
-	if (MarkedEdge.count(inedge) == 0) return false;
-    }
-    return true;
+	 for (iter = node->inEdges->begin(); iter != node->inEdges->end(); iter++) {
+		 Edge *inedge = *iter; 
+		 if(MarkedEdge.count(inedge) == 0) 
+			 return false;
+	 } 
+	 return true;
 }
 
 
@@ -305,4 +309,5 @@ void ParIFDuplica::DEBUG_outputsethead(ChildrenSet *SCHead, std::set<ChildrenSet
 //for some silly linking problem, I have to have
 //it inlined here.
 ///////////////////////////////////////
-#include "ShortcutConstruct.cpp.in"
+//FIXME : should include here
+//#include "ShortcutConstruct.cpp.in"

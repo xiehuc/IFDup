@@ -16,6 +16,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/ADT/Statistic.h>
 
+#include <llvm/Support/raw_ostream.h>
 	
 #include <map>
 #include <set>
@@ -133,14 +134,14 @@ class SafeRegforBB {
 	}
 
    // Print the safeRegSet set
-   void dumpSafeRegs() {
-     std::cerr << "(";
-	 std::set<Value*>::iterator i, e;
-	 for (i=safeRegSet.begin(), e=safeRegSet.end(); i!=e; i++) {
-		std::cerr << (*i)->getName() << " ";
+	 void dumpSafeRegs() {
+		 errs() << "(";
+		 std::set<Value*>::iterator i, e;
+		 for (i=safeRegSet.begin(), e=safeRegSet.end(); i!=e; i++) {
+			 errs() << (*i)->getName() << " ";
+		 }
+		 errs() <<")\n";
 	 }
-	std::cerr <<")\n";
-   }
 
    // Constructor and destructor.
 	SafeRegforBB(int edges) {

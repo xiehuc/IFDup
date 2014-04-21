@@ -11,6 +11,7 @@
 
 //#define FUNC_DEBUG 1
 
+#define DEBUG_TYPE "ins_duplica"
 #define REG_SAFE 1
 
 #include <set>
@@ -22,6 +23,10 @@
 #include "llvm/ADT/PostOrderIterator.h"
 
 //#define Jing_DEBUG 1
+
+STATISTIC(NumInsDup, "Number of generated instructions");
+STATISTIC(NumBBChecker, "Number of generated branch checker BBs");
+STATISTIC(NumStoreChecker, "Number of generated store checker BBs");      
 
 using namespace llvm;
 
@@ -42,12 +47,12 @@ bool InsDuplica::runOnFunction(Function &F) {
     if (notdummyFunc(F) && workFunc(F)) {
 
 	//get postDominatorSet for redundant check removal
-	PostDominatorSet &postDominSet = getAnalysis<PostDominatorSet>();
+	PostDominatorTree &postDominTree = getAnalysis<PostDominatorTree>();
 	LoopInfo &loopinfo = getAnalysis<LoopInfo>();
 
 #ifdef REG_SAFE
-	DominatorSet &DominSet = getAnalysis<DominatorSet>();
-	dominset = &DominSet;
+	DominatorTree &DominTree  = getAnalysis<DominatorTree>();
+	domintree = &DominTree;
 #endif
 
 	mycheckCodeMap = new CheckCodeMap();

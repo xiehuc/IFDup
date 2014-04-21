@@ -1,8 +1,11 @@
 //-----Developed by Jing Yu -----//
 //This file is extracted from ParIFDuplica.cpp //
 //for reading purpose. It can stand alone by itself//
+//
 
-
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/BasicBlock.h>
+using namespace std;
 
 void ParIFDuplica::DupImplement(std::list<ChildrenSet*> *HeadNodeList){
     std::list<ChildrenSet*>::iterator iter;
@@ -51,15 +54,16 @@ void ParIFDuplica::DupImplement(std::list<ChildrenSet*> *HeadNodeList){
 
 //find a proper position in head where to insert assignment
 Instruction *ParIFDuplica::findPosin(ChildrenSet *HeadNode) {
-    assert(HeadNode->isHead() && "Error:findPosin() can only be called on head node!");
-    BasicBlock *headBB = HeadNode->getBB();
-    Instruction *pointer = &(headBB->back());
-    if (pointer == headBB->begin()) return pointer; //if only one instruction
-    while ((pointer!=headBB->begin() ) && (noEffect(pointer)))
-	pointer=pointer->getPrev();
+	assert(HeadNode->isHead() && "Error:findPosin() can only be called on head node!");
+	BasicBlock *headBB = HeadNode->getBB();
+	BasicBlock::iterator pointer = --headBB->end();
+	//Instruction *pointer = &(headBB->back());
+	if (pointer == headBB->begin()) return pointer; //if only one instruction
+	while ((pointer!=headBB->begin() ) && (noEffect(pointer)))
+		--pointer;
 
-    if (noEffect(pointer)) return pointer;
-    else return pointer->getNext();
+	if (noEffect(pointer)) return pointer;
+	else return ++pointer;
 }
 
 //check if inst generate a value that will be used by other block 
@@ -128,127 +132,132 @@ bool ParIFDuplica::ImplementonEdge(Edge *theEdge,unsigned int fromOP,std::map<Va
 
 //duplicate this BB, place it before beforeBB, return it
 //The branch targets are left uncared
-BasicBlock * ParIFDuplica::RepBlock(BasicBlock *thisBB,std::map<Value*,Value*>&valueMap,Instruction* HeadInsertBF, BasicBlock *beforeBB){
-    std::map<Value*,Value*> localMap;
-    std::string newName = thisBB->getName()+"_dup_"+ beforeBB->getName();
+BasicBlock * ParIFDuplica::RepBlock(BasicBlock *thisBB,std::map<Value*,Value*>&valueMap,Instruction* HeadInsertBF, BasicBlock *beforeBB)
+{
+	std::map<Value*,Value*> localMap;
+	std::string newName = thisBB->getName().str()+"_dup_"+ beforeBB->getName().str();
 
-    BasicBlock *newBB = new BasicBlock(newName, thisBB->getParent(),beforeBB);
+	BasicBlock *newBB = BasicBlock::Create(thisBB->getContext(), newName, thisBB->getParent(),beforeBB);
 
-    Instruction * Inst;
-    if ((HeadInsertBF->getParent()) == thisBB) Inst = HeadInsertBF;
-    else Inst = thisBB->begin();
-    
-    while(Inst!=&(thisBB->back())) {
-        assert(!isa<AllocaInst>(Inst) && "Should not have AllocaInst replicated");
-	Instruction *newI = Inst->clone();
-	if (Inst->hasName())
-	    newI->setName(Inst->getName() + "_dup");
-	//repliace its operands
-	replaceOperands(newI, valueMap, localMap);
-	//update localMap
-	localMap[Inst]=newI;
-	//push NewI to the back of newBB
-	newBB->getInstList().push_back(newI);
-	Inst=Inst->getNext();
-     };
-    assert(Inst->isTerminator() && "Error:the last should be a terminator");
+	BasicBlock::iterator Inst,E = --thisBB->end();
+	if ((HeadInsertBF->getParent()) == thisBB){
+		for(Inst = thisBB->begin(); Inst!=thisBB->end(); ++Inst)
+			if(&*Inst == HeadInsertBF) break;
+	}
+		//Inst = find(thisBB->begin(),thisBB->end(),*HeadInsertBF);
+	else Inst = thisBB->begin();
 
-    //duplicate the last instruction
-    BranchInst *newBranchI = cast<BranchInst>(Inst->clone());
-    if (Inst->hasName()) 
-	newBranchI->setName(Inst->getName() + "_dup");
+	while(Inst!=E) {
+		assert(!isa<AllocaInst>(Inst) && "Should not have AllocaInst replicated");
+		Instruction *newI = Inst->clone();
+		if (Inst->hasName())
+			newI->setName(Inst->getName() + "_dup");
+		//repliace its operands
+		replaceOperands(newI, valueMap, localMap);
+		//update localMap
+		localMap[Inst]=newI;
+		//push NewI to the back of newBB
+		newBB->getInstList().push_back(newI);
+		++Inst;
+	};
+	assert(Inst->isTerminator() && "Error:the last should be a terminator");
 
-     assert(newBranchI->isConditional() && "Error: the terminator must be a conditional branch");
-    Value *cond = newBranchI->getCondition();
-    Value *repcond = NULL;
-    if (localMap.count(cond)>0) repcond = localMap[cond];
-    else if (valueMap.count(cond)>0) repcond = valueMap[cond];
+	//duplicate the last instruction
+	BranchInst *newBranchI = cast<BranchInst>(Inst->clone());
+	if (Inst->hasName()) 
+		newBranchI->setName(Inst->getName() + "_dup");
 
-    if (repcond) newBranchI->setCondition(repcond);
-    else {
-        Instruction *condI = cast<Instruction>(cond);
-	assert(condI && "Branch condition must be an instruction");
-        assert(!canbecopied(condI) && "This cond can not be copied");
-    }
-    newBB->getInstList().push_back(newBranchI);
+	assert(newBranchI->isConditional() && "Error: the terminator must be a conditional branch");
+	Value *cond = newBranchI->getCondition();
+	Value *repcond = NULL;
+	if (localMap.count(cond)>0) repcond = localMap[cond];
+	else if (valueMap.count(cond)>0) repcond = valueMap[cond];
 
-    return newBB;
+	if (repcond) newBranchI->setCondition(repcond);
+	else {
+		Instruction *condI = cast<Instruction>(cond);
+		assert(condI && "Branch condition must be an instruction");
+		assert(!canbecopied(condI) && "This cond can not be copied");
+	}
+	newBB->getInstList().push_back(newBranchI);
+
+	return newBB;
 }
 
 
 //Duplicate all outside values that are used by thisBB
 //If thisBB is head, we only process instructions after HeadInsertBF
 void ParIFDuplica::preRepBlock(BasicBlock *thisBB,std::map<Value*,Value*>&valueMap, Instruction* HeadInsertBF){
-    Instruction *myscan= thisBB->begin();
-    bool isHead;
-    std::set<Instruction*> notWorkzone;
+	BasicBlock::iterator myscan= thisBB->begin();
+	bool isHead;
+	std::set<Instruction*> notWorkzone;
 
-    //There should be no Phi node for non-head node
-    if (HeadInsertBF->getParent()!=thisBB) {
-	isHead = false;
-	assert(!isa<PHINode>(thisBB->begin()) && "Error:midnodes should not have Phi");
-    } else {
-	isHead = true;
-	//add instructions before HeadInsertBF to notWorkzone
-	while (myscan != HeadInsertBF) {
-	    notWorkzone.insert(myscan);
-	    myscan = myscan ->getNext();
-	}
-	assert(!isa<PHINode>(myscan) && "HeadInsertBF should not point to a PHI");
-    }
-#ifdef Jing_DEBUG
-    //    std::cerr << "PreRep Block " << thisBB->getName() <<" :---\n";
-#endif
-    //scan instructions in workzone. Do not need to care about the 
-    //last instruction, because it must be a terminator.
-    while (myscan != thisBB->end()) { 
-	if (myscan->isTerminator()) break;
-	unsigned int numOP = myscan->getNumOperands();
-	for (unsigned int i=0; i < numOP; i++) {
-	    //for each outside operand, check it has been duplicated before
-	    // (has an entry in valueMap)
-	    Instruction *curOP = dyn_cast<Instruction>(myscan->getOperand(i));
-	    //operand is not always an instruction, but we can only work on instruction
-	    //assert(curOP && "Error:operand should be an instruction");
-	    if (curOP && canbecopied(curOP)) {
-	    //check if curOP was defined in other BB or in notWorkzone
-	    if (curOP->getParent() != thisBB || notWorkzone.count(curOP)>0) {
-		//check if curOP was duplicated before
-		if (valueMap.count(curOP)==0) {
-		    //make a copy of curOP
-		    Instruction *newcurOP = curOP->clone();
-		    newcurOP->setName(curOP->getName()+"_dup");
-#ifdef Jing_DEBUG
-		    //std::cerr<<"Rep " <<curOP->getName() << " to " <<newcurOP->getName() <<" \n";
-#endif
-		    //hope this works
-		    curOP->getParent()->getInstList().insert(curOP,newcurOP);
-		    valueMap[curOP]=newcurOP;
+	//There should be no Phi node for non-head node
+	if (HeadInsertBF->getParent()!=thisBB) {
+		isHead = false;
+		assert(!isa<PHINode>(thisBB->begin()) && "Error:midnodes should not have Phi");
+	} else {
+		isHead = true;
+		//add instructions before HeadInsertBF to notWorkzone
+		while (&*myscan != HeadInsertBF) {
+			notWorkzone.insert(myscan);
+			++myscan;
 		}
-	    }
-	    }
-#ifdef Jing_DEBUG
-	    else {
-	      
-	    }
-#endif
-	} //end of for
-	myscan = myscan->getNext();
-    } //end of while
-    //we also need to care about condition of branchInst
-    BranchInst *branchI = dyn_cast<BranchInst>(myscan);
-    assert(branchI && "the last instruction must be a branch");
-    Instruction *cond = dyn_cast<Instruction>(branchI->getCondition());
-    assert(cond && "branch condition must be an instruction");
-    //check if cond should be replicated in preRep pass
-    if (cond->getParent() != thisBB || notWorkzone.count(cond)>0) {
-	if (valueMap.count(cond)==0 && canbecopied(cond)) {
-	  Instruction *newcond = cond->clone();
-	  newcond->setName(cond->getName()+"_dup");
-          cond->getParent()->getInstList().insert(cond,newcond);
-	  valueMap[cond]=newcond;
+		assert(!isa<PHINode>(myscan) && "HeadInsertBF should not point to a PHI");
 	}
-    }
+#ifdef Jing_DEBUG
+	//    std::cerr << "PreRep Block " << thisBB->getName() <<" :---\n";
+#endif
+	//scan instructions in workzone. Do not need to care about the 
+	//last instruction, because it must be a terminator.
+	while (myscan != thisBB->end()) { 
+		if (myscan->isTerminator()) break;
+		unsigned int numOP = myscan->getNumOperands();
+		for (unsigned int i=0; i < numOP; i++) {
+			//for each outside operand, check it has been duplicated before
+			// (has an entry in valueMap)
+			Instruction *curOP = dyn_cast<Instruction>(myscan->getOperand(i));
+			//operand is not always an instruction, but we can only work on instruction
+			//assert(curOP && "Error:operand should be an instruction");
+			if (curOP && canbecopied(curOP)) {
+				//check if curOP was defined in other BB or in notWorkzone
+				if (curOP->getParent() != thisBB || notWorkzone.count(curOP)>0) {
+					//check if curOP was duplicated before
+					if (valueMap.count(curOP)==0) {
+						//make a copy of curOP
+						Instruction *newcurOP = curOP->clone();
+						newcurOP->setName(curOP->getName()+"_dup");
+#ifdef Jing_DEBUG
+						//std::cerr<<"Rep " <<curOP->getName() << " to " <<newcurOP->getName() <<" \n";
+#endif
+						//hope this works
+						curOP->getParent()->getInstList().insert(curOP,newcurOP);
+						valueMap[curOP]=newcurOP;
+					}
+				}
+			}
+#ifdef Jing_DEBUG
+			else {
+
+			}
+#endif
+		} //end of for
+		++myscan;
+	} //end of while
+	//we also need to care about condition of branchInst
+	BranchInst *branchI = dyn_cast<BranchInst>(myscan);
+	assert(branchI && "the last instruction must be a branch");
+	Instruction *cond = dyn_cast<Instruction>(branchI->getCondition());
+	assert(cond && "branch condition must be an instruction");
+	//check if cond should be replicated in preRep pass
+	if (cond->getParent() != thisBB || notWorkzone.count(cond)>0) {
+		if (valueMap.count(cond)==0 && canbecopied(cond)) {
+			Instruction *newcond = cond->clone();
+			newcond->setName(cond->getName()+"_dup");
+			cond->getParent()->getInstList().insert(cond,newcond);
+			valueMap[cond]=newcond;
+		}
+	}
 }
 
 
@@ -290,7 +299,10 @@ void ParIFDuplica::UpdateIncomeSource(BasicBlock *BB,BasicBlock *changefrom,Basi
 
 
 bool ParIFDuplica::canbecopied(Instruction *I) {
-   if (I->mayWriteToMemory() || isa<PHINode>(I) || isa<AllocaInst>(I) || isa<MallocInst>(I)) return false;
+   if (I->mayWriteToMemory() || isa<PHINode>(I) || isa<AllocaInst>(I) ) return false;
+	if (CallInst* CI = dyn_cast<CallInst>(I))
+		if(CI->getCalledValue()->getName()=="malloc") 
+			return false;
    return true;
- //return false;
+	//return false;
 }

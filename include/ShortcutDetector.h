@@ -72,53 +72,74 @@ namespace {
 
     ///////////////////////////////////////
     ///////////////////////////////////////   
- class Edge {
- public:
-     Edge(ChildrenSet *from, BasicBlock *to) {fromNode = from; toNode = to;}
-     Edge(ChildrenSet *from, ChildrenSet *to);
-    private:
-      ChildrenSet *fromNode;
-      BasicBlock *toNode;
-      std::list<Rep*> propgtRep;
-      std::list<Rep*> fixRep;
+class Edge {
+	public:
+		Edge(ChildrenSet *from, BasicBlock *to) {fromNode = from; toNode = to;}
+		Edge(ChildrenSet *from, ChildrenSet *to);
+	private:
+		ChildrenSet *fromNode;
+		BasicBlock *toNode;
+		std::list<Rep*> propgtRep;
+		std::list<Rep*> fixRep;
 
-    public:
-      Rep* popFirstRep() { 
-	  Rep *firstone = propgtRep.front();
-	  propgtRep.pop_front();
-	  return firstone;
-      }
-     void insertRep(Rep *one) { //insert to fixRep
-	 fixRep.push_back(one);
-     }
-     void propagateTo(Rep *one) { //propagate to propgtRep
-	 if (!one->notTo(toNode)) { //this edge can be propagated to
-	     propgtRep.push_back(one);
-	 }
-     }
-     bool isPRepEmpty() {return propgtRep.empty();}
-     bool isFRepEmpty() {return fixRep.empty();}
+	public:
+		ChildrenSet *getFrom() {return fromNode;}
+		BasicBlock *getTo() {return toNode;}
+		Rep* popBackRep() {
+			Rep *backone = propgtRep.back();
+			propgtRep.pop_back();
+			return backone;
+		}
+		Rep* popFirstRep() { 
+			Rep *firstone = propgtRep.front();
+			propgtRep.pop_front();
+			return firstone;
+		}
+		void insertRep(Rep *one) { //insert to fixRep
+			fixRep.push_back(one);
+		}
+		void insertRepfront(Rep *one) {
+			fixRep.push_front(one);
+		}
+		void propagateTo(Rep *one) { //propagate to propgtRep
+			if (!one->notTo(toNode)) { //this edge can be propagated to
+				propgtRep.push_back(one);
+			}
+		}
 
-     std::list<Rep*> getfinalRep() {
-	 assert(propgtRep.empty() && "getfinalRep must be called after all propagation is done!");
-	 fixRep.unique();
-	 return fixRep;
-     }
+		//move all propgtReps to the front of fixReps
+		void fixAllReps() {
+			while (!isPRepEmpty()) {
+				insertRepfront(popBackRep());
+			}
+		}
+		bool isPRepEmpty() {return propgtRep.empty();}
+		bool isFRepEmpty() {return fixRep.empty();}
 
-     std::string dump(std::string prefix);
+		std::list<Rep*> *getfinalRep() {
+			if (!propgtRep.empty()) 
+				//this edge must point to outside. The propgtRep has not been 
+				//proccessed
+				fixAllReps();
 
-     std::string dump(std::list<Rep*> &listtodump) {
-	 if (listtodump.empty()) return " ";
+			fixRep.unique();
+			return &fixRep;
+		}
 
-	 std::string *s = new std::string();
-	 std::list<Rep*>::iterator iter;
-	 for (iter=listtodump.begin(); iter!=listtodump.end(); iter++) {
-	     (*s)+=(*iter)->dump()+" ";
-	 }
-	 return (*s);
-     }
+		std::string dump(std::string prefix);
 
-    };//end of struct Edge
+		std::string dump(std::list<Rep*> &listtodump) {
+			if (listtodump.empty()) return " ";
+
+			std::string *s = new std::string();
+			std::list<Rep*>::iterator iter;
+			for (iter=listtodump.begin(); iter!=listtodump.end(); iter++) {
+				(*s)+=(*iter)->dump()+" ";
+			}
+			return (*s);
+		}
+
+};//end of struct Edge
 
  /////////////////////////////////
 
