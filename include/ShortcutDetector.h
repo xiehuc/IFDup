@@ -178,9 +178,9 @@ namespace {
 
   public:
       Edge *out0, *out1;
-      std::list<Edge>* inEdges;
+      std::list<Edge*>* inEdges;
       void conEdgeGraph(std::set<ChildrenSet*>*);
-      void addinEdges(Edge &);
+      void addinEdges(Edge *);
  };
 
     //////////////////////////////////////

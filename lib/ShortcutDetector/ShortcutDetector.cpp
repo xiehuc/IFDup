@@ -673,30 +673,30 @@ ChildrenSet::verify_domination(DominatorSet *dominset){
 //construct outgoing edges for this node
 //also add likes of the new edges to their corresponding target nodes if their targets are within *midnodeset*
 void ChildrenSet::conEdgeGraph(std::set<ChildrenSet*>*midnodeset) {
-    //#ifdef Jing_DEBUG
-    //std::cerr<< "Debug:: come to conEdgeGraph for "<< myBB->getName()<<"\n";
-    //#endif
-    if (leftchildBB) out0 = new Edge(this,leftchildBB); 
-    else {
-	out0 = new Edge(this, leftchildrenset->getBB());
-	if (midnodeset->count(leftchildrenset)>0) {
-	    //left child is within the scope
-	    leftchildrenset->addinEdges(*out0);
+	//#ifdef Jing_DEBUG
+	//std::cerr<< "Debug:: come to conEdgeGraph for "<< myBB->getName()<<"\n";
+	//#endif
+	if (leftchildBB) out0 = new Edge(this,leftchildBB); 
+	else {
+		out0 = new Edge(this, leftchildrenset->getBB());
+		if (midnodeset->count(leftchildrenset)>0) {
+			//left child is within the scope
+			leftchildrenset->addinEdges(out0);
+		}
 	}
-    }
-    if (rightchildBB) out1 = new Edge(this,rightchildBB);
-    else {
-	out1 = new Edge(this, rightchildrenset->getBB());
-	if (midnodeset->count(rightchildrenset)>0) {
-	    //right child is within the scope
-	    rightchildrenset->addinEdges(*out1);
+	if (rightchildBB) out1 = new Edge(this,rightchildBB);
+	else {
+		out1 = new Edge(this, rightchildrenset->getBB());
+		if (midnodeset->count(rightchildrenset)>0) {
+			//right child is within the scope
+			rightchildrenset->addinEdges(out1);
+		}
 	}
-    }
 }
 
-void ChildrenSet::addinEdges(Edge &inEdge) {
-    if (inEdges == NULL) inEdges = new std::list<Edge>();
-    inEdges->push_back(inEdge);
+void ChildrenSet::addinEdges(Edge *inEdge) {
+	if (inEdges == NULL) inEdges = new std::list<Edge*>();
+	inEdges->push_back(inEdge);
 }
 
 
