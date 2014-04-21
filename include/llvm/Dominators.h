@@ -22,11 +22,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ANALYSIS_DOMINATORS_H
-#define LLVM_ANALYSIS_DOMINATORS_H
+#ifndef LLVM_16_ANALYSIS_DOMINATORS_H
+#define LLVM_16_ANALYSIS_DOMINATORS_H
 
 #include <llvm/Pass.h>
 #include <set>
+#include <map>
 
 namespace llvm {
 
@@ -38,12 +39,12 @@ template <typename GraphType> struct GraphTraits;
 /// DominatorBase - Base class that other, more interesting dominator analyses
 /// inherit from.
 ///
-class DominatorBase : public FunctionPass {
+class DominatorBase16 : public FunctionPass {
 	protected:
 		std::vector<BasicBlock*> Roots;
 		const bool IsPostDominators;
 
-		inline DominatorBase(bool isPostDom) : Roots(), IsPostDominators(isPostDom), FunctionPass(ID) {}
+		inline DominatorBase16(bool isPostDom) : Roots(), IsPostDominators(isPostDom), FunctionPass(ID) {}
 	public:
 		static char ID;
 		/// getRoots -  Return the root blocks of the current CFG.  This may include
@@ -62,11 +63,11 @@ class DominatorBase : public FunctionPass {
 /// ImmediateDominators - Calculate the immediate dominator for each node in a
 /// function.
 ///
-class ImmediateDominatorsBase : public DominatorBase {
+class ImmediateDominatorsBase16 : public DominatorBase16 {
 protected:
   std::map<BasicBlock*, BasicBlock*> IDoms;
 public:
-  ImmediateDominatorsBase(bool isPostDom) : DominatorBase(isPostDom) {}
+  ImmediateDominatorsBase16(bool isPostDom) : DominatorBase16(isPostDom) {}
 
   virtual void releaseMemory() { IDoms.clear(); }
 
@@ -122,8 +123,8 @@ public:
 /// ImmediateDominators Class - Concrete subclass of ImmediateDominatorsBase
 /// that is used to compute a normal immediate dominator set.
 ///
-struct ImmediateDominators : public ImmediateDominatorsBase {
-  ImmediateDominators() : ImmediateDominatorsBase(false) {}
+struct ImmediateDominators16 : public ImmediateDominatorsBase16 {
+  ImmediateDominators16() : ImmediateDominatorsBase16(false) {}
 
   BasicBlock *getRoot() const {
     assert(Roots.size() == 1 && "Should always have entry node!");
@@ -167,14 +168,14 @@ private:
 /// is unreachable in this function, the set will be empty.  This cannot happen
 /// for reachable code, because every block dominates at least itself.
 ///
-struct DominatorSetBase : public DominatorBase {
+struct DominatorSetBase16 : public DominatorBase16 {
   typedef std::set<BasicBlock*> DomSetType;    // Dom set for a bb
   // Map of dom sets
   typedef std::map<BasicBlock*, DomSetType> DomSetMapType;
 protected:
   DomSetMapType Doms;
 public:
-  DominatorSetBase(bool isPostDom) : DominatorBase(isPostDom) {}
+  DominatorSetBase16(bool isPostDom) : DominatorBase16(isPostDom) {}
 
   virtual void releaseMemory() { Doms.clear(); }
 
@@ -253,8 +254,8 @@ public:
 /// DominatorSet Class - Concrete subclass of DominatorSetBase that is used to
 /// compute a normal dominator set.
 ///
-struct DominatorSet : public DominatorSetBase {
-  DominatorSet() : DominatorSetBase(false) {}
+struct DominatorSet : public DominatorSetBase16 {
+  DominatorSet() : DominatorSetBase16(false) {}
 
   virtual bool runOnFunction(Function &F);
 
@@ -266,7 +267,7 @@ struct DominatorSet : public DominatorSetBase {
   /// getAnalysisUsage - This simply provides a dominator set
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<ImmediateDominators>();
+    AU.addRequired<ImmediateDominators16>();
     AU.setPreservesAll();
   }
 
@@ -274,7 +275,7 @@ struct DominatorSet : public DominatorSetBase {
   //  static void stub();
 };
 
-
+#if 0
 //===----------------------------------------------------------------------===//
 /// DominatorTree - Calculate the immediate dominator tree for a function.
 ///
@@ -509,6 +510,7 @@ private:
   const DomSetType &calculate(const DominatorTree &DT,
                               const DominatorTree::Node *Node);
 };
+#endif
 
 // Make sure that any clients of this file link in Dominators.cpp
 /*static IncludeFile
