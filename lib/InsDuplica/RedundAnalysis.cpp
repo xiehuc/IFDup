@@ -11,6 +11,8 @@
 //        Check or do not check br operands.
 /////////////////////////////////////////
 
+#include <llvm/ADT/SmallPtrSet.h>
+#include "llvm/PostDominators.h"
 #include "RedundOPT.h"
 
 #define L1_CHECK 1
@@ -51,20 +53,19 @@ CheckCode::deleteElement(Value *elem) {
 
 void
 CheckCode::dumpCheckCode() {
-    std::cerr << "I(" ;
-    if (CheckCodeInst->hasName()) std::cerr<<CheckCodeInst->getName();
-    else std::cerr << CheckCodeInst->getParent()->getName();
-    std::cerr <<")-T("<< CheckCodeInst->getOpcodeName()<<")-[";
-    for (std::set<Value*>::iterator i=CheckElem.begin(),e=CheckElem.end(); i != e; i++) 
-	std::cerr << (*i)->getName() <<" ";
-    std::cerr<<"]";
-
+	errs() << "I(" ;
+	if (CheckCodeInst->hasName()) errs()<<CheckCodeInst->getName();
+	else errs() << CheckCodeInst->getParent()->getName();
+	errs() <<")-T("<< CheckCodeInst->getOpcodeName()<<")-[";
+	for (std::set<Value*>::iterator i=CheckElem.begin(),e=CheckElem.end(); i != e; i++) 
+		errs() << (*i)->getName() <<" ";
+	errs()<<"]";
 }
 
 void
 CheckCode::dump() {
-    dumpCheckCode();
-    std::cerr <<"\n";
+	dumpCheckCode();
+	errs() <<"\n";
 }
 
 ////////////////////////////
@@ -133,14 +134,14 @@ CheckLoad::ComputeFinal() {
 
 void
 CheckLoad::dump() {
-    dumpCheckCode();
-    std::cerr <<"-LoadFinal(";
-    if (computeFinal) {
-	for (std::set<Value*>::iterator i = finalElems.begin(), e=finalElems.end(); i!=e; i++) {
-	    std::cerr << (*i)->getName() <<" ";
+	dumpCheckCode();
+	errs() <<"-LoadFinal(";
+	if (computeFinal) {
+		for (std::set<Value*>::iterator i = finalElems.begin(), e=finalElems.end(); i!=e; i++) {
+			errs() << (*i)->getName() <<" ";
+		}
 	}
-    }
-    std::cerr << ")\n";
+	errs() << ")\n";
 }
 
 
@@ -222,15 +223,15 @@ CheckStore::ComputeFinal() {
 
 void
 CheckStore::dump() {
-    dumpCheckCode();
-    if (computeFinal) {
-	std::cerr <<"-StoreFinal(";
- 	for (std::set<Value*>::iterator i = finalElems.begin(), e=finalElems.end(); i!=e; i++) {
-	    std::cerr << (*i)->getName() <<" ";
-	}
-	std::cerr << ")";
-    } 
-    std::cerr << "\n";
+	dumpCheckCode();
+	if (computeFinal) {
+		errs() <<"-StoreFinal(";
+		for (std::set<Value*>::iterator i = finalElems.begin(), e=finalElems.end(); i!=e; i++) {
+			errs() << (*i)->getName() <<" ";
+		}
+		errs() << ")";
+	} 
+	errs() << "\n";
 }
 
 
@@ -331,10 +332,10 @@ CheckCodeMap::deleteElem(Instruction* I, Value *elem) {
     assert(checkcodeI && "I does not have an entryin CheckCodeMap!");
 
 #ifdef R_DEBUG
-    std::cerr <<"deleteElem("<<elem->getName()<<")From(";
-    if (I->hasName()) std::cerr << I->getName();
-    else std::cerr << I->getParent()->getName() <<":"<<I->getOpcodeName();
-    std::cerr<<")  ";
+    errs() <<"deleteElem("<<elem->getName()<<")From(";
+    if (I->hasName()) errs() << I->getName();
+    else errs() << I->getParent()->getName() <<":"<<I->getOpcodeName();
+    errs()<<")  ";
 #endif
 
     checkcodeI->deleteElement(elem);    
@@ -405,23 +406,23 @@ ValueCheckedAt::propagateTo(ValueCheckedAt *laterCheck) {
 
 void
 ValueCheckedAt::dump() {
-    std::cerr << "I("<<CheckElem->getName() <<")-CheckedAt[";
-    std::set<Instruction*>::iterator i,e;
-    for (i=CheckedAtList.begin(), e=CheckedAtList.end(); i!=e; i++) {
-	if ((*i)->hasName())
-	    std::cerr << (*i)->getName()<<",";
-	else 
-	    std::cerr << (*i)->getParent()->getName() <<":"<<(*i)->getOpcodeName()<<",";
-    }
-    
-    std::cerr <<"]-Prop[";
-    for (i=PropOrFinalList.begin(), e=PropOrFinalList.end(); i!=e; i++) {
-	if ((*i)->hasName())
-	    std::cerr << (*i)->getName()<<",";
-	else 
-	    std::cerr << (*i)->getParent()->getName() <<":"<<(*i)->getOpcodeName()<<",";
-    }
-    std::cerr <<"]\n";
+	errs() << "I("<<CheckElem->getName() <<")-CheckedAt[";
+	std::set<Instruction*>::iterator i,e;
+	for (i=CheckedAtList.begin(), e=CheckedAtList.end(); i!=e; i++) {
+		if ((*i)->hasName())
+			errs() << (*i)->getName()<<",";
+		else 
+			errs() << (*i)->getParent()->getName() <<":"<<(*i)->getOpcodeName()<<",";
+	}
+
+	errs() <<"]-Prop[";
+	for (i=PropOrFinalList.begin(), e=PropOrFinalList.end(); i!=e; i++) {
+		if ((*i)->hasName())
+			errs() << (*i)->getName()<<",";
+		else 
+			errs() << (*i)->getParent()->getName() <<":"<<(*i)->getOpcodeName()<<",";
+	}
+	errs() <<"]\n";
 }
 
 
@@ -558,35 +559,35 @@ RedundAnalysis::~RedundAnalysis() {
 
 void
 RedundAnalysis::SetUpTable(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCheckedAtMap, Function &F) {
-    MycheckCodeMap =  checkCodeMap;
-    MyvalueCheckedAtMap =  valueCheckedAtMap;
-    MyF = &F;
-    
-    setupFuncArguSet(F);
-    initSynchPoint(F);
-    //make sure both maps are empty
-    assert(checkCodeMap->empty() && "checkCodeMap must be empty before calling RedundAnalysis");
-    assert(valueCheckedAtMap->empty() && "valueCheckedAtMap must be empty before calling RedundAnalysis");
+	MycheckCodeMap =  checkCodeMap;
+	MyvalueCheckedAtMap =  valueCheckedAtMap;
+	MyF = &F;
 
-    ToUpdateList.clear();
+	setupFuncArguSet(F);
+	initSynchPoint(F);
+	//make sure both maps are empty
+	assert(checkCodeMap->empty() && "checkCodeMap must be empty before calling RedundAnalysis");
+	assert(valueCheckedAtMap->empty() && "valueCheckedAtMap must be empty before calling RedundAnalysis");
 
-    ScanAllCheckCodes(F);
+	ToUpdateList.clear();
+
+	ScanAllCheckCodes(F);
 #ifdef R_DEBUG
-    std::cerr << "\n\n==== Function "<< F.getName() <<" ====\n";
-    std::cerr << "After ScanAllCheckCodes() inside RedundAnalysis--\n";
-    checkCodeMap->dump();
-    valueCheckedAtMap->dump();
-#endif
-
-    buildSynchPointTable();
-
-    if (!ToUpdateList.empty()) {
-	PropagateChecks();
-#ifdef R_DEBUG
-	std::cerr << "====== After PropagateChecks =====\n";
+	errs() << "\n\n==== Function "<< F.getName() <<" ====\n";
+	errs() << "After ScanAllCheckCodes() inside RedundAnalysis--\n";
+	checkCodeMap->dump();
 	valueCheckedAtMap->dump();
 #endif
-    }
+
+	buildSynchPointTable();
+
+	if (!ToUpdateList.empty()) {
+		PropagateChecks();
+#ifdef R_DEBUG
+		errs() << "====== After PropagateChecks =====\n";
+		valueCheckedAtMap->dump();
+#endif
+	}
 }
 
 
@@ -609,9 +610,13 @@ RedundAnalysis::addtoUpdateList(Value *v) {
 
 bool
 RedundAnalysis::canPropErrorInst(Instruction *I) {
-    if (isCheckPoint(I) || isa<AllocationInst>(I) || isa<VAArgInst>(I) || isa<FreeInst>(I)) return false;
+    if (isCheckPoint(I) || isa<AllocaInst>(I) || isa<VAArgInst>(I) ) return false;
+	 if (CallInst* CI = dyn_cast<CallInst>(I))
+		 if( CI->getCalledValue()->getName() == "free") 
+			 return false;
     //SETXX
-    if (isa<SetCondInst>(I)) return false;
+	 //FIXME : xiehuc unknow set cond instr
+    //if (isa<SetCondInst>(I)) return false;
     return true;
 }
 
@@ -625,40 +630,42 @@ RedundAnalysis::isCheckPoint(Instruction *Ins) {
 //This function scans all BBs. But it will reorder some intructions inside BB,
 //to make condition next to branch.
 void 
-RedundAnalysis::ScanAllCheckCodes(Function &F) {
-    
-    for (Function::iterator BBi = F.begin(), BBE = F.end(); BBi!=BBE; ++BBi) {
-	BasicBlock *BB = BBi;
-	Instruction *nextI;
-	Instruction *LastCond = findLastCond(BB);
-	Instruction *I = BB->begin();
+RedundAnalysis::ScanAllCheckCodes(Function &F) 
+{
 
-	bool isSynchpoint = false;
-	while (I!=LastCond && I!=NULL) {
-	    nextI = I->getNext();
-	    if (isCheckPoint(I)) { SetupTablewithCheckPoint(I, BB);}
-	    if (isSynchPoint(I)) isSynchpoint = true;
-	    I = nextI;
-	}
+	for (Function::iterator BBi = F.begin(), BBE = F.end(); BBi!=BBE; ++BBi) {
+		BasicBlock *BB = BBi;
+		BasicBlock::iterator nextI, I = BB->begin();
+		Instruction *LastCond = findLastCond(BB);
 
-	//if I is null, means this block has ended
-	//do with branch
-	if (I!=NULL) {
-	    if (BranchInst *BI = hasConditionalBr(BB)) {
+		bool isSynchpoint = false;
+		while (&*I!=LastCond) {
+			nextI = I;
+			++nextI;
+			if (isCheckPoint(I)) { SetupTablewithCheckPoint(I, BB);}
+			if (isSynchPoint(I)) isSynchpoint = true;
+			I = nextI;
+		}
+
+		//if I is null, means this block has ended
+		//do with branch
+		//FIXME : xiehuc I couldn't be null
+		//if (I!=NULL) {
+			if (BranchInst *BI = hasConditionalBr(BB)) {
 #ifdef CHECK_BRANCH_OPERANDS
-		//Check branch operands
-		SetupTablewithBranch(LastCond, BI, BB);
+				//Check branch operands
+				SetupTablewithBranch(LastCond, BI, BB);
 #endif
-	    } else if (ReturnInst *RI = dyn_cast<ReturnInst>(LastCond)) {
-		SetupTablewithReturn(RI, BB);
-	    }
-	}
-		
-	  //set up synchpoint analysis
-	  if (isSynchpoint) markBBdirty(BB);
-	  addPathFromBB(BB);
+			} else if (ReturnInst *RI = dyn_cast<ReturnInst>(LastCond)) {
+				SetupTablewithReturn(RI, BB);
+			}
+		//}
 
-    }  //end of for
+		//set up synchpoint analysis
+		if (isSynchpoint) markBBdirty(BB);
+		addPathFromBB(BB);
+
+	}  //end of for
 }
 
 
@@ -668,94 +675,96 @@ RedundAnalysis::ScanAllCheckCodes(Function &F) {
 void 
 RedundAnalysis::SetupTablewithCheckPoint(Instruction*I, BasicBlock*BB) {
 #ifdef R_DEBUG
-    std::cerr << "SetupCP(";
-    if (I->hasName()) std::cerr<< I->getName() <<") ";
-    else std::cerr << I->getOpcodeName() <<") ";
-    std::cerr << ":BB{"<<I->getParent()->getName()<<"} ";
+	errs() << "SetupCP(";
+	if (I->hasName()) errs()<< I->getName() <<") ";
+	else errs() << I->getOpcodeName() <<") ";
+	errs() << ":BB{"<<I->getParent()->getName()<<"} ";
 
 #endif
 
-    if (LoadInst *LoadI = dyn_cast<LoadInst>(I)) {
-	SetupTablewithLoad(LoadI, BB);
-    } else if (StoreInst *StoreI = dyn_cast<StoreInst>(I)) {
+	if (LoadInst *LoadI = dyn_cast<LoadInst>(I)) {
+		SetupTablewithLoad(LoadI, BB);
+	} else if (StoreInst *StoreI = dyn_cast<StoreInst>(I)) {
 #ifdef L3_CHECK
-	SetupTablewithStore(StoreI, BB,  CHECKEDAT); //L3 CHECKEDAT
+		SetupTablewithStore(StoreI, BB,  CHECKEDAT); //L3 CHECKEDAT
 #endif
 #ifdef L1_CHECK
-	SetupTablewithStore(StoreI, BB, PROPORFINAL); //L1 PROPORFINAL
+		SetupTablewithStore(StoreI, BB, PROPORFINAL); //L1 PROPORFINAL
 #endif
-    } else if (CallInst *CallI = dyn_cast<CallInst>(I)) {
-	SetupTablewithCall(CallI, BB, PROPORFINAL);
-    } else {
-	assert (0 && "I is not recognized here");
-    }
-
-
+	} else if (CallInst *CallI = dyn_cast<CallInst>(I)) {
+		SetupTablewithCall(CallI, BB, PROPORFINAL);
+	} else {
+		assert (0 && "I is not recognized here");
+	}
 }
 
 void 
 RedundAnalysis::SetupTablewithBranch(Instruction *LastCond, BranchInst* BI, BasicBlock*BB){
-    assert(BI->isConditional() && "Only conditional branch will be replicated");
-    assert((LastCond->getParent())==BB && "LastCond's parent must be BB");
+	assert(BI->isConditional() && "Only conditional branch will be replicated");
+	assert((LastCond->getParent())==BB && "LastCond's parent must be BB");
 
-    Instruction *myCond = dyn_cast<Instruction>(BI->getCondition());
-    assert (myCond && "Branch condition must not be trivial"); 
+	Instruction *myCond = dyn_cast<Instruction>(BI->getCondition());
+	assert (myCond && "Branch condition must not be trivial"); 
 
-    bool checkOperand = false; //indicate whether check two operands or just a bool value
+	bool checkOperand = false; //indicate whether check two operands or just a bool value
 
-    if (LastCond != BI) {
-	//condition must be inside BB, and next to BI
-	//If myCond is SETXX, we check its operands
-	if (isa<SetCondInst>(myCond)) {
-	    checkOperand = true;
- 	    Value *op0 = myCond->getOperand(0);
-	    Value *op1 = myCond->getOperand(1);
-	    
-	    if (duplicable(op0) || duplicable(op1)) {
+	if (LastCond != BI) {
+		//condition must be inside BB, and next to BI
+		//If myCond is SETXX, we check its operands
+		//FIXME : xiehuc unknow set cond inst
+#if 0
+		if (isa<SetCondInst>(myCond)) {
+			checkOperand = true;
+			Value *op0 = myCond->getOperand(0);
+			Value *op1 = myCond->getOperand(1);
+
+			if (duplicable(op0) || duplicable(op1)) {
 #ifdef R_DEBUG
-		std::cerr << "SetupBr-setxx:BB{"<< BI->getParent()->getName()<<"} ";
+				std::cerr << "SetupBr-setxx:BB{"<< BI->getParent()->getName()<<"} ";
 #endif
-		CheckCode *checkcodeEntry = MycheckCodeMap->newCheckCode(BI);
-		assert(checkcodeEntry && "Must not be null");
+				CheckCode *checkcodeEntry = MycheckCodeMap->newCheckCode(BI);
+				assert(checkcodeEntry && "Must not be null");
 
-		if (duplicable(op0)) {
-		    SetUpTablewithOP(checkcodeEntry, op0, BI, CHECKEDAT);
-		    localnumtotalbrcheck++;
-		}
+				if (duplicable(op0)) {
+					SetUpTablewithOP(checkcodeEntry, op0, BI, CHECKEDAT);
+					localnumtotalbrcheck++;
+				}
 
-		if (duplicable(op1)) {
-		    SetUpTablewithOP(checkcodeEntry, op1, BI, CHECKEDAT);
-		    localnumtotalbrcheck++;
+				if (duplicable(op1)) {
+					SetUpTablewithOP(checkcodeEntry, op1, BI, CHECKEDAT);
+					localnumtotalbrcheck++;
+				}
+			}
 		}
-	    }
+#endif
 	}
-    }
 
-    //if the condition's operand is not checked, we need to check the bool value
-    if (!checkOperand) {
-	if (duplicable(myCond)) {
+	//if the condition's operand is not checked, we need to check the bool value
+	if (!checkOperand) {
+		if (duplicable(myCond)) {
 #ifdef R_DEBUG
-		std::cerr << "SetupBr-bool:BB{"<< BI->getParent()->getName()<<"} ";
+			errs() << "SetupBr-bool:BB{"<< BI->getParent()->getName()<<"} ";
 #endif
-	    CheckCode *checkcodeEntry = MycheckCodeMap->newCheckCode(BI);
-	    assert(checkcodeEntry && "Must not be null");
-	    SetUpTablewithOP(checkcodeEntry, myCond, BI, CHECKEDAT);
-	    localnumtotalbrcheck++;
+			CheckCode *checkcodeEntry = MycheckCodeMap->newCheckCode(BI);
+			assert(checkcodeEntry && "Must not be null");
+			SetUpTablewithOP(checkcodeEntry, myCond, BI, CHECKEDAT);
+			localnumtotalbrcheck++;
+		}
 	}
-    }
 }
 
 void 
 RedundAnalysis::SetupTablewithReturn(ReturnInst *returnI, BasicBlock* BB){
-    Value *retV = returnI->getReturnValue();
-    if (retV && (retV->getType() != Type::VoidTy)) {
-	if (duplicable(retV)) {
-	    CheckCode *checkcodeEntry = MycheckCodeMap->newCheckCode(returnI);
-	    assert(checkcodeEntry && "Must not be null");
-	    SetUpTablewithOP(checkcodeEntry, retV, returnI, PROPORFINAL);
-	    localnumtotalothercheck++;
+	Value *retV = returnI->getReturnValue();
+	LLVMContext& C = BB->getContext();
+	if (retV && (retV->getType() != Type::getVoidTy(C))) {
+		if (duplicable(retV)) {
+			CheckCode *checkcodeEntry = MycheckCodeMap->newCheckCode(returnI);
+			assert(checkcodeEntry && "Must not be null");
+			SetUpTablewithOP(checkcodeEntry, retV, returnI, PROPORFINAL);
+			localnumtotalothercheck++;
+		}
 	}
-    }
 }
 
 void
@@ -863,16 +872,16 @@ RedundAnalysis::SetUpTablewithOP(CheckCode *checkcodeEntry, Value *v, Instructio
 }
 
 void RedundAnalysis::printStatforTotal(Function &F){
-    std::cerr << "LOCAL_REDUND_CHECK "<< localnumtotalldcheck <<" localnumtotalldcheck ("<<F.getName()<<")\n";
-    std::cerr << "LOCAL_REDUND_CHECK "<< localnumtotalstcheck <<" localnumtotalstcheck ("<<F.getName()<<")\n";
-  std::cerr << "LOCAL_REDUND_CHECK "<< localnumtotalbrcheck <<" localnumtotalbrcheck ("<<F.getName()<<")\n";
-  std::cerr << "LOCAL_REDUND_CHECK "<< localnumtotalothercheck <<" localnumtotalothercheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumtotalldcheck <<" localnumtotalldcheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumtotalstcheck <<" localnumtotalstcheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumtotalbrcheck <<" localnumtotalbrcheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumtotalothercheck <<" localnumtotalothercheck ("<<F.getName()<<")\n";
 
-  //clear counters
-    localnumtotalldcheck=0;
-    localnumtotalstcheck=0;
-    localnumtotalbrcheck=0;
-    localnumtotalothercheck=0;
+	//clear counters
+	localnumtotalldcheck=0;
+	localnumtotalstcheck=0;
+	localnumtotalbrcheck=0;
+	localnumtotalothercheck=0;
 }
 
 ///////////////////////////////////////////////////////////
@@ -1059,19 +1068,19 @@ RedundAnalysis::hasSynchPoint(Instruction *sI, Instruction *eI) {
 
 //not include s and e
 bool 
-RedundAnalysis::hasSynchPointWithinBB(Instruction*s, Instruction*e) {
+RedundAnalysis::hasSynchPointWithinBB(Instruction* s, Instruction* e) {
 
 	BasicBlock *BB = s->getParent();
 	assert(BB == e->getParent() && "Two ins must within the same BB");
-	
-	Instruction *lastInst = &(BB->back());
-	if (s == lastInst) return false;
 
-	Instruction *I = s->getNext();
+	Instruction* lastInst = &BB->back();
+	if (s == BB->getTerminator()) return false;
+
+	Instruction *I = s->getNextNode();
 
 	while (I != e && I != lastInst) {
-	  if (isSynchPoint(I)) return true;
-	  I = I->getNext();
+		if (isSynchPoint(I)) return true;
+		I = I->getNextNode();
 	}
 	//actually, terminator is not synchpoint
 	//if (I != e ) return isSynchPoint(lastInst);
@@ -1114,7 +1123,10 @@ RedundAnalysis::hasSynchPoint(BasicBlock *bb) {
 //ugly helper functions need to be copied again.
 
 void 
-RedundAnalysis::removeOverlap(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCheckedAtMap, Function &F, PostDominatorSet &postdominSet) {
+RedundAnalysis::removeOverlap(CheckCodeMap *checkCodeMap, 
+		ValueCheckedAtMap *valueCheckedAtMap, 
+		Function &F, 
+		PostDominatorSet &postdominSet) {
     assert(&F == MyF && "Function changed");
     assert(checkCodeMap == MycheckCodeMap && "MycheckCodeMap changed");
     assert(valueCheckedAtMap == MyvalueCheckedAtMap 
@@ -1124,8 +1136,8 @@ RedundAnalysis::removeOverlap(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *val
 
     if (!MyvalueCheckedAtMap->empty()) {
 #ifdef R_DEBUG
-	std::cerr << "\n============Remove overlapped checked ("<< F.getName();
-	std::cerr <<") ==============\n";
+	errs() << "\n============Remove overlapped checked ("<< F.getName();
+	errs() <<") ==============\n";
 #endif
 	std::set<Value*> allkeys;
 	MyvalueCheckedAtMap->getAllKeys(allkeys);
@@ -1134,12 +1146,12 @@ RedundAnalysis::removeOverlap(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *val
 		 keye = allkeys.end(); keyi != keye; keyi++) {
 	    ValueCheckedAt *checkedAt = MyvalueCheckedAtMap->getValueCheckedTable(*keyi);
 #ifdef R_DEBUG
-	    //std::cerr << "removeAtValue(" << (*keyi)->getName()<<")----";
+	    //errs() << "removeAtValue(" << (*keyi)->getName()<<")----";
 #endif
 	    if (removeOverlapOnValue((*keyi),checkedAt, postdominSet))
 		changed = true;
 #ifdef R_DEBUG
-	    //std::cerr <<"\n";
+	    //errs() <<"\n";
 #endif
 	}
     
@@ -1330,8 +1342,8 @@ RedundAnalysis::rmSafeReg(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueCh
 
     if (!MyvalueCheckedAtMap->empty()) {
 #ifdef R_DEBUG
-	std::cerr << "\n============Remove values in safe register("<< F.getName();
-	std::cerr <<") ==============\n";
+	errs() << "\n============Remove values in safe register("<< F.getName();
+	errs() <<") ==============\n";
 #endif
 
 	std::map<Instruction*,CheckCode*>&mycheckCodeMap = checkCodeMap->getMap();
@@ -1394,10 +1406,10 @@ RedundAnalysis::isSafeReg(Value*v) {
 
 void 
 RedundAnalysis::printSafeRegPassStat(Function &F) {
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumsaferegld <<" localnumsaferegld ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumsaferegst <<" localnumsaferegst ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumsaferegbr <<" localnumsaferegbr ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumsaferegother <<" localnumsaferegother ("<<F.getName()<<")\n";   
+     errs() << "LOCAL_REDUND_CHECK "<< localnumsaferegld <<" localnumsaferegld ("<<F.getName()<<")\n";
+     errs() << "LOCAL_REDUND_CHECK "<< localnumsaferegst <<" localnumsaferegst ("<<F.getName()<<")\n";
+     errs() << "LOCAL_REDUND_CHECK "<< localnumsaferegbr <<" localnumsaferegbr ("<<F.getName()<<")\n";
+     errs() << "LOCAL_REDUND_CHECK "<< localnumsaferegother <<" localnumsaferegother ("<<F.getName()<<")\n";   
 }
 
 
@@ -1492,16 +1504,16 @@ LoopIVInfo::addIVset(std::vector<PHINode*>&IVs) {
 
 void
 LoopIVInfo::dump() {
-	std::cerr << "Loop-Head("<<myloop->getHeader()->getName()<<")";
-	std::cerr << "-IVs(";
+	errs() << "Loop-Head("<<myloop->getHeader()->getName()<<")";
+	errs() << "-IVs(";
 	for (std::set<Value*>::iterator i = IVset.begin(), e = IVset.end();
 		i!=e; i++) 
-		std::cerr <<(*i)->getName()<<",";
-	std::cerr <<")-ExitBranch(";
+		errs() <<(*i)->getName()<<",";
+	errs() <<")-ExitBranch(";
 	for (std::map<BranchInst*,bool>::iterator i = ExitingBranch.begin(),
 		e = ExitingBranch.end(); i!=e; i++) 
-		std::cerr << (*i).first->getParent()->getName() <<":"<<(*i).second<<",";
-	std::cerr << ")";
+		errs() << (*i).first->getParent()->getName() <<":"<<(*i).second<<",";
+	errs() << ")";
 }
 
 
@@ -1531,8 +1543,8 @@ RedundAnalysis::rmLoopIV(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueChe
 
     bool changed = false;
 #ifdef R_DEBUG
-    std::cerr << "\n============Remove redundant loopIV ("<< F.getName();
-    std::cerr <<") ==============\n";
+    errs() << "\n============Remove redundant loopIV ("<< F.getName();
+    errs() <<") ==============\n";
 #endif
 
     std::list<Loop*> potentialLoops;
@@ -1553,7 +1565,7 @@ RedundAnalysis::rmLoopIV(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueChe
 	printLoopOptPassStat(F);
     } else {
 #ifdef R_DEBUG
-	std::cerr << "No change...\n";
+	errs() << "No change...\n";
 #endif
 	}
 }
@@ -1562,7 +1574,7 @@ RedundAnalysis::rmLoopIV(CheckCodeMap *checkCodeMap, ValueCheckedAtMap *valueChe
 LoopIVInfo*
 RedundAnalysis::getLoopIV(Loop* loop) {
     //# of Exiting block  <= 2
-	std::vector<BasicBlock*> Eblocks;
+	SmallVector<BasicBlock*,8> Eblocks;
 	Eblocks.clear();
 	loop->getExitingBlocks(Eblocks);
 	if (Eblocks.size() <= 2) {
@@ -1576,7 +1588,8 @@ RedundAnalysis::getLoopIV(Loop* loop) {
 		   if (!hasSynchPoint(loop)) {
 		       //add loopinfo to LoopIVInfo object
 		       LoopIVInfo *info = new LoopIVInfo(loop);
-		       info->addExitingBlocks(Eblocks);
+				 std::vector<BasicBlock*> Eblocks__(Eblocks.begin(),Eblocks.end());
+		       info->addExitingBlocks(Eblocks__);
 		       info->addIVset(IVs);
 #ifdef R_DEBUG
 		       std::cerr << "LoopSatisfy^^^";
@@ -1667,11 +1680,11 @@ RedundAnalysis::optConstantCheck(Value *iv, Loop *loop, Instruction *checkI, Loo
 		//remove *i from checkI's list
 		toremove.insert(checkI);
 #ifdef R_DEBUG
-		std::cerr << "Move checking on loop invariant " << (*i)->getName() 
+		errs() << "Move checking on loop invariant " << (*i)->getName() 
 			  << " for I(";
-		if (checkI->hasName()) std::cerr << checkI->getName();
-		else std::cerr << checkI->getParent()->getName() <<":"<<checkI->getOpcodeName();
-		std::cerr <<")\n";
+		if (checkI->hasName()) errs() << checkI->getName();
+		else errs() << checkI->getParent()->getName() <<":"<<checkI->getOpcodeName();
+		errs() <<")\n";
 		
 #endif
 		statLoopOpt(*i, checkI);
@@ -1689,33 +1702,32 @@ RedundAnalysis::optConstantCheck(Value *iv, Loop *loop, Instruction *checkI, Loo
 ///Add iv to exiting branch's partial check list
 void
 RedundAnalysis::moveOutofLoop(Value *iv, LoopIVInfo *info) {
-    //get Exiting blocks
-    //may fail with PAPI
-    if (!((info->ExitingBranch).empty())) {
-	//assert(!((info->ExitingBranch).empty()) && "Exiting blocks should be 0");
-	std::map<BranchInst*,bool>::iterator mapi = info->ExitingBranch.begin(),
-	    mape = info->ExitingBranch.end();
-	for (;mapi!=mape; ++mapi) {
-	    BranchInst *exitBr = (*mapi).first;
-	    bool outto = (*mapi).second;
-	    
-	    CheckCode * checkcode = MycheckCodeMap->getCheckCode(exitBr);
-	    if (!checkcode) 
-		checkcode = MycheckCodeMap->newCheckCode(exitBr);
-	    CheckBranch *checkbr = (CheckBranch*)(checkcode);
-	    
-	    checkbr->insertPropCheck(iv, outto, false);
-	    
+	//get Exiting blocks
+	//may fail with PAPI
+	if (!((info->ExitingBranch).empty())) {
+		//assert(!((info->ExitingBranch).empty()) && "Exiting blocks should be 0");
+		std::map<BranchInst*,bool>::iterator mapi = info->ExitingBranch.begin(),
+			mape = info->ExitingBranch.end();
+		for (;mapi!=mape; ++mapi) {
+			BranchInst *exitBr = (*mapi).first;
+			bool outto = (*mapi).second;
+
+			CheckCode * checkcode = MycheckCodeMap->getCheckCode(exitBr);
+			if (!checkcode) 
+				checkcode = MycheckCodeMap->newCheckCode(exitBr);
+			CheckBranch *checkbr = (CheckBranch*)(checkcode);
+
+			checkbr->insertPropCheck(iv, outto, false);
+
 
 #ifdef R_DEBUG
-	    std::cerr << "Copy check on " << iv->getName() << " to Loop outsie BB(" <<
-		exitBr->getParent()->getName()<<")-";
-	    checkbr->dump_propCheck();
-	    std::cerr << "\n";
+			errs() << "Copy check on " << iv->getName() << " to Loop outsie BB(" <<
+				exitBr->getParent()->getName()<<")-";
+			checkbr->dump_propCheck();
+			errs() << "\n";
 #endif
+		}
 	}
-    }
-    
 }
 
 
@@ -1730,10 +1742,10 @@ RedundAnalysis::statLoopOpt(Value *v, Instruction *I) {
 
 void 
 RedundAnalysis::printLoopOptPassStat(Function &F) {
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumloopld <<" localnumloopld ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumloopst <<" localnumloopst ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumloopbr <<" localnumloopbr ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumloopother <<" localnumloopother ("<<F.getName()<<")\n";   
+	errs() << "LOCAL_REDUND_CHECK "<< localnumloopld <<" localnumloopld ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumloopst <<" localnumloopst ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumloopbr <<" localnumloopbr ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumloopother <<" localnumloopother ("<<F.getName()<<")\n";   
 }
 
 
@@ -1814,15 +1826,15 @@ RedundAnalysis::getInnermostLoop(std::list<Loop*>&innerLoops, Function&F, LoopIn
 
 bool
 RedundAnalysis::duplicable(Value* V) {
-    if (Instruction *Ins = dyn_cast<Instruction>(V)) {
-      if ( isa<CallInst>(Ins) || isa<TerminatorInst>(Ins) 
-	   || isa<StoreInst>(Ins) ||isa<FreeInst>(Ins)  
-	   || isa<AllocationInst>(Ins) ||  isa<VAArgInst>(Ins))  
-	  return false;
-      else return true;
-    } else {
-	return isFuncArgu(V);
-    }
+	if (Instruction *Ins = dyn_cast<Instruction>(V)) {
+		if ( isa<CallInst>(Ins) || isa<TerminatorInst>(Ins) 
+				|| isa<StoreInst>(Ins) /*||isa<FreeInst>(Ins) //included in callinst  */
+				|| isa<AllocaInst>(Ins) ||  isa<VAArgInst>(Ins))  
+			return false;
+		else return true;
+	} else {
+		return isFuncArgu(V);
+	}
 }
 
 bool 
@@ -1842,7 +1854,7 @@ RedundAnalysis::findLastCond (BasicBlock *BB) {
 	Instruction* condIns = dyn_cast<Instruction>(cond); 
 	//find condIns. But we have to make sure condIns is the second to the last instruction in BB
 	assert(condIns && "Branch Condition must not be trivial");
-	if ((condIns->getNext())!=lastIns) {
+	if ((condIns->getNextNode())!=lastIns) {
 	    //assert((condIns->getParent() == BB) && "condIns is not in the same BB as br!");
 	    //if condIns is not in the same BB as br. We have to leave it there
 	    if (condIns->getParent() != BB) return lastIns;

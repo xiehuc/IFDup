@@ -43,8 +43,8 @@ using namespace llvm;
 //
 //===----------------------------------------------------------------------===//
 
-static RegisterAnalysis<ImmediateDominators>
-C("idom", "Immediate Dominators Construction", true);
+static RegisterPass<ImmediateDominators>
+C("idom", "Immediate Dominators Construction", true, true);
 
 char DominatorBase::ID = 0;
 
