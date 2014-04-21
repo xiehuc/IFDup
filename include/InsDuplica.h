@@ -41,11 +41,10 @@ namespace llvm {
   class InsDuplica : public FunctionPass  {
   public:
 	  virtual void getAnalysisUsage (AnalysisUsage &AU) const {
-		  //FIXME xiehuc
-		  //AU.addRequired<PostDominatorSet>();
-		  //AU.addRequired<DominatorSet>();
-		  AU.addRequired<PostDominatorTree>();
-		  AU.addRequired<DominatorTree>();
+		  AU.addRequired<PostDominatorSet>();
+		  AU.addRequired<DominatorSet>();
+		  //AU.addRequired<PostDominatorTree>();
+		  //AU.addRequired<DominatorTree>();
 		  AU.addRequired<LoopInfo>();
 	  }
 
@@ -120,8 +119,7 @@ namespace llvm {
 	//For advanced register safe optimization
 	SafeRegMap *safeRegMap;
 
-	//FIXME : xiehuc
-	DominatorTree *domintree;  // pointer to DominatorSet
+	DominatorSet *dominset;  // pointer to DominatorSet
 	SafeRegforBB *curSafeRegs;  // safe reg sets for current BB
 
   }; //end of class InsDuplica

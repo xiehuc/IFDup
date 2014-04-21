@@ -21,6 +21,8 @@
 
 #include <llvm/Support/raw_ostream.h>
 
+#include "llvm/PostDominators.h"
+
 #include <map>
 #include <set>
 #include <vector>

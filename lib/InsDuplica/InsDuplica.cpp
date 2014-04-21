@@ -51,8 +51,8 @@ bool InsDuplica::runOnFunction(Function &F) {
 	LoopInfo &loopinfo = getAnalysis<LoopInfo>();
 
 #ifdef REG_SAFE
-	DominatorTree &DominTree  = getAnalysis<DominatorTree>();
-	domintree = &DominTree;
+	DominatorSet &DominSet  = getAnalysis<DominatorSet>();
+	dominset = &DominSet;
 #endif
 
 	mycheckCodeMap = new CheckCodeMap();
@@ -242,7 +242,7 @@ void InsDuplica::DuplicaBB(BasicBlock *BB) {
 
     //replicate instructions inside BB
     while (I!=LastCond && I!=NULL) {
-	nextI = I->getNext();
+	nextI = I->getNextNode();
 	//duplicate I and insert the duplicated instruction before I
 	if (duplicable(I)) {
 		//this version, we use load-move version for load
@@ -295,7 +295,7 @@ void InsDuplicaTile::DuplicaBB(BasicBlock *BB) {
 
     //tile instructions
     while (I!=LastCond) {
-	nextI=I->getNext();
+	nextI=I->getNextNode();
 	//deal with synchPoints
 	while ((I!=LastCond) && (isSynchPoint(I))){
 	    //if I is synchpoint, check correcness before proceed
@@ -308,7 +308,7 @@ void InsDuplicaTile::DuplicaBB(BasicBlock *BB) {
 	//Now I is at the beginning of a new synch zone
 	//Find the end of this zone
 	nextSynI = findNextSynchPoint(I,LastCond);
-	zoneEnd = nextSynI->getPrev();
+	zoneEnd = nextSynI->getPrevNode();
 	Instruction *lastI;
 
 	do {
@@ -320,7 +320,7 @@ void InsDuplicaTile::DuplicaBB(BasicBlock *BB) {
 		valueMap[I]=I;
 	    }
 	    lastI = I;
-	    I=I->getNext();
+	    I=I->getNextNode();
 	} while(lastI!=zoneEnd);
 
 	//skip those new generated instructions
@@ -400,89 +400,89 @@ BasicBlock *InsDuplica::newCheckerStore(Instruction* synchI, BasicBlock *BB, Ins
 //newOneValueChecker()           //
 ///////////////////////////////////
 BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *synchI, BasicBlock *BBofSynchI, std::string &nameTag) {
-    assert (duplicable(ValuetoCheck) && "checked value must be duplicable");
+	assert (duplicable(ValuetoCheck) && "checked value must be duplicable");
 
 #ifdef REG_SAFE
-    //Register Safe  SafeReg
-    //if ValuetoCheck is a load or cast(load), do not check
-    /*  -- We are generalizing the rule.
-	if (isa<LoadInst>(ValuetoCheck)) return BBofSynchI;
-    if (CastInst *castI = dyn_cast<CastInst>(ValuetoCheck)) {
-      if (isa<LoadInst>(castI->getOperand(0)))
-        return BBofSynchI;
-    }
-    */
+	//Register Safe  SafeReg
+	//if ValuetoCheck is a load or cast(load), do not check
+	/*  -- We are generalizing the rule.
+		 if (isa<LoadInst>(ValuetoCheck)) return BBofSynchI;
+		 if (CastInst *castI = dyn_cast<CastInst>(ValuetoCheck)) {
+		 if (isa<LoadInst>(castI->getOperand(0)))
+		 return BBofSynchI;
+		 }
+		 */
 	if (curSafeRegs->isValueSafe(ValuetoCheck)) {
-	  // Count the checks for reg safe
-	  statRegRemove(synchI);
-	  return BBofSynchI;
-	}
-	if (CastInst *castI = dyn_cast<CastInst>(ValuetoCheck)) {
-	  if (curSafeRegs->isValueSafe(castI->getOperand(0))) {
 		// Count the checks for reg safe
 		statRegRemove(synchI);
 		return BBofSynchI;
-	  }
+	}
+	if (CastInst *castI = dyn_cast<CastInst>(ValuetoCheck)) {
+		if (curSafeRegs->isValueSafe(castI->getOperand(0))) {
+			// Count the checks for reg safe
+			statRegRemove(synchI);
+			return BBofSynchI;
+		}
 	}
 #endif
 
-    Value *ValuetoCheckDup = ValuetoCheck; //by default
+	Value *ValuetoCheckDup = ValuetoCheck; //by default
 
-    //If ValuetoCheck's dup is itself. Do not check it.
-    if (valueMap.count(ValuetoCheck) >0) 
-	if (valueMap[ValuetoCheck] == ValuetoCheck) 
-	  return BBofSynchI;
+	//If ValuetoCheck's dup is itself. Do not check it.
+	if (valueMap.count(ValuetoCheck) >0) 
+		if (valueMap[ValuetoCheck] == ValuetoCheck) 
+			return BBofSynchI;
 
-    //new SetEQ instruction and insert it before synchI
-    SetCondInst *newSetEQ = new SetCondInst(llvm::Instruction::SetEQ, ValuetoCheck, ValuetoCheckDup, ValuetoCheck->getName()+nameTag, synchI);
-    newSetEQ->setDUP(); //set DUP attribute
-    localnuminsdup++;
-    NumInsDup++;
+	//new SetEQ instruction and insert it before synchI
+	SetCondInst *newSetEQ = new SetCondInst(llvm::Instruction::SetEQ, ValuetoCheck, ValuetoCheckDup, ValuetoCheck->getName()+nameTag, synchI);
+	newSetEQ->setDUP(); //set DUP attribute
+	localnuminsdup++;
+	NumInsDup++;
 
 #ifdef Jing_DEBUG
-    std::cerr << "create newSetEQ for " <<ValuetoCheck->getName() <<" at " << BBofSynchI->getName()<<"\n";
+	std::cerr << "create newSetEQ for " <<ValuetoCheck->getName() <<" at " << BBofSynchI->getName()<<"\n";
 #endif
-    //update ValuetoCheckDup
-    if (valueMap.count(ValuetoCheck) > 0) {
-	ValuetoCheckDup = valueMap[ValuetoCheck];
-	newSetEQ->setOperand(1,ValuetoCheckDup);
-    } else { 
-	//StoreValue should have a duplica. 
-	//Since we haven't found it, sumbit a request an update request
-	assert(isa<Instruction>(ValuetoCheck) && "Argu must be already in valueMap");
-	requestToMap(cast<Instruction>(ValuetoCheck), newSetEQ);
-    }
+	//update ValuetoCheckDup
+	if (valueMap.count(ValuetoCheck) > 0) {
+		ValuetoCheckDup = valueMap[ValuetoCheck];
+		newSetEQ->setOperand(1,ValuetoCheckDup);
+	} else { 
+		//StoreValue should have a duplica. 
+		//Since we haven't found it, sumbit a request an update request
+		assert(isa<Instruction>(ValuetoCheck) && "Argu must be already in valueMap");
+		requestToMap(cast<Instruction>(ValuetoCheck), newSetEQ);
+	}
 
-    //split BBofSynchI to add conditional branch
-    BasicBlock *newBB = BBofSynchI->splitBasicBlock(synchI, BBofSynchI->getName()+nameTag);
+	//split BBofSynchI to add conditional branch
+	BasicBlock *newBB = BBofSynchI->splitBasicBlock(synchI, BBofSynchI->getName()+nameTag);
 
-    //Now, the end of BBofSynchI is a branch to newBB. We have to replace this branch by a conditional branch based on newSetEQ
-    BranchInst *BI = dyn_cast<BranchInst>(BBofSynchI->getTerminator());
-    assert(BI && "After split, the splitted BB must have a Br as its terminator");
-    //Erase the old branch
-    BI->eraseFromParent();
-    BranchInst *condBI = new BranchInst(newBB,errorBlock,newSetEQ,BBofSynchI);
-    condBI->setDUP(); //set DUP attribute
+	//Now, the end of BBofSynchI is a branch to newBB. We have to replace this branch by a conditional branch based on newSetEQ
+	BranchInst *BI = dyn_cast<BranchInst>(BBofSynchI->getTerminator());
+	assert(BI && "After split, the splitted BB must have a Br as its terminator");
+	//Erase the old branch
+	BI->eraseFromParent();
+	BranchInst *condBI = new BranchInst(newBB,errorBlock,newSetEQ,BBofSynchI);
+	condBI->setDUP(); //set DUP attribute
 
-    localnuminsdup++;
-    NumInsDup++;
-    
-    //no need to update PhINodes. splitBasicBlock already does so
+	localnuminsdup++;
+	NumInsDup++;
+
+	//no need to update PhINodes. splitBasicBlock already does so
 
 #ifdef Jing_DEBUG
-    std::cerr << "newOneValueChecker creates "<<newBB->getName()<<" inside "<< BBofSynchI->getName()<<"\n";
+	std::cerr << "newOneValueChecker creates "<<newBB->getName()<<" inside "<< BBofSynchI->getName()<<"\n";
 #endif
 
 #ifdef REG_SAFE
-    // Now the value is safe.
+	// Now the value is safe.
 	curSafeRegs->insertValueSafe(ValuetoCheck);
 #ifdef Jing_DEBUG
 	std::cerr << "add_safe("<<ValuetoCheck->getName()<<"),";
 #endif
 #endif
-    localnumStorechecker++;
-    NumStoreChecker++;
-    return newBB;
+	localnumStorechecker++;
+	NumStoreChecker++;
+	return newBB;
 }
 
 ////////////////////////////////
@@ -669,9 +669,9 @@ void InsDuplica::DuplicaBr(BasicBlock *BB, Instruction *LastCond, BranchInst *BI
 ///////////////////////////////////
 BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, BasicBlock *thisBB,BasicBlock *nextBB, bool trueSide) {
     std::string sidetag = (trueSide)? "T":"F";
-    std::string newName = thisBB->getName()+"_"+sidetag+"_"+nextBB->getName();
+    std::string newName = thisBB->getName().str()+"_"+sidetag+"_"+nextBB->getName().str();
     
-    BasicBlock *newBB = new BasicBlock(newName, thisBB->getParent(), nextBB);
+    BasicBlock *newBB = BasicBlock::Create(thisBB->getContext(), newName, thisBB->getParent(), nextBB);
     
     Instruction *myCond = dyn_cast<Instruction>(BI->getCondition());
     assert(myCond && "BI's condition must not be trivial");
@@ -714,9 +714,9 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
     //duplicate branch
     BranchInst *newBI;
     if (trueSide) 
-	newBI = new BranchInst(nextBB,errorBlock,newCond,newBB);
+	newBI = BranchInst::Create(nextBB,errorBlock,newCond,newBB);
     else
-	newBI = new BranchInst(errorBlock,nextBB,newCond,newBB);
+	newBI = BranchInst::Create(errorBlock,nextBB,newCond,newBB);
 
     newBI->setDUP(); // set DUP attribute
 
@@ -937,7 +937,7 @@ BasicBlock* InsDuplica::DuplicaLoad(LoadInst *I, BasicBlock *BB) {
 //////////////////////////////////////
 bool InsDuplica::duplicable (Value *V) {
     if (Instruction *Ins = dyn_cast<Instruction>(V)) {
-      if (isSynchPoint(Ins) || isa<AllocationInst>(Ins) ||  isa<VAArgInst>(Ins))  return false;
+      if (isSynchPoint(Ins) || isa<AllocaInst>(Ins) ||  isa<VAArgInst>(Ins))  return false;
 	} else {
 	  return isFuncArgu(V);
 	}
@@ -957,7 +957,7 @@ bool InsDuplica::duplicable (Value *V) {
 Instruction *InsDuplicaTile::findNextSynchPoint (Instruction *curI, Instruction*lastCond) {
     assert(!(isSynchPoint(curI)) && "findNextSynchPoint: curI must not be a Synchpoint");
     while (curI!=lastCond && !(isSynchPoint(curI))) 
-	curI = curI->getNext();
+	curI = curI->getNextNode();
     return curI;
 }
 
