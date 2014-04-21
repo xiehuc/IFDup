@@ -139,15 +139,11 @@ BasicBlock * ParIFDuplica::RepBlock(BasicBlock *thisBB,std::map<Value*,Value*>&v
 
 	BasicBlock *newBB = BasicBlock::Create(thisBB->getContext(), newName, thisBB->getParent(),beforeBB);
 
-	BasicBlock::iterator Inst,E = --thisBB->end();
-	if ((HeadInsertBF->getParent()) == thisBB){
-		for(Inst = thisBB->begin(); Inst!=thisBB->end(); ++Inst)
-			if(&*Inst == HeadInsertBF) break;
-	}
-		//Inst = find(thisBB->begin(),thisBB->end(),*HeadInsertBF);
+	Instruction* Inst;
+	if ((HeadInsertBF->getParent()) == thisBB) Inst = HeadInsertBF;
 	else Inst = thisBB->begin();
 
-	while(Inst!=E) {
+	while(Inst!=&thisBB->back()) {
 		assert(!isa<AllocaInst>(Inst) && "Should not have AllocaInst replicated");
 		Instruction *newI = Inst->clone();
 		if (Inst->hasName())
@@ -158,7 +154,7 @@ BasicBlock * ParIFDuplica::RepBlock(BasicBlock *thisBB,std::map<Value*,Value*>&v
 		localMap[Inst]=newI;
 		//push NewI to the back of newBB
 		newBB->getInstList().push_back(newI);
-		++Inst;
+		Inst = Inst->getNextNode();
 	};
 	assert(Inst->isTerminator() && "Error:the last should be a terminator");
 
