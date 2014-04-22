@@ -40,6 +40,8 @@ namespace llvm {
 
   class InsDuplica : public FunctionPass  {
   public:
+	  static char ID;
+	  InsDuplica():FunctionPass(ID){}
 	  virtual void getAnalysisUsage (AnalysisUsage &AU) const {
 		  AU.addRequired<PostDominatorSet>();
 		  AU.addRequired<DominatorSet>();
@@ -125,9 +127,9 @@ namespace llvm {
   }; //end of class InsDuplica
 
   class InsDuplicaTile: public InsDuplica {   
-    protected:
-      virtual void DuplicaBB(BasicBlock *);
-      Instruction* findNextSynchPoint(Instruction*, Instruction*);
+	  protected:
+		  virtual void DuplicaBB(BasicBlock *);
+		  Instruction* findNextSynchPoint(Instruction*, Instruction*);
   };
 
       

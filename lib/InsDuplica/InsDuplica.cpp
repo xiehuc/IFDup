@@ -39,6 +39,8 @@ namespace {
 //Implement InsDuplica Class//
 //////////////////////////////
 
+char InsDuplica::ID = 0;
+
 bool InsDuplica::runOnFunction(Function &F) {
     //initiate local counters
     initLocalCounter();
@@ -434,8 +436,10 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
 			return BBofSynchI;
 
 	//new SetEQ instruction and insert it before synchI
-	SetCondInst *newSetEQ = new SetCondInst(llvm::Instruction::SetEQ, ValuetoCheck, ValuetoCheckDup, ValuetoCheck->getName()+nameTag, synchI);
-	newSetEQ->setDUP(); //set DUP attribute
+	ICmpInst* newSetEQ = new ICmpInst(synchI, ICmpInst::ICMP_EQ, ValuetoCheck, ValuetoCheckDup, ValuetoCheck->getName()+nameTag);
+	//SetCondInst *newSetEQ = new SetCondInst(llvm::Instruction::SetEQ, ValuetoCheck, ValuetoCheckDup, ValuetoCheck->getName()+nameTag, synchI);
+	//FIXME: xiehuc unknow setDUPmethod
+	//newSetEQ->setDUP(); //set DUP attribute
 	localnuminsdup++;
 	NumInsDup++;
 
@@ -461,8 +465,9 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
 	assert(BI && "After split, the splitted BB must have a Br as its terminator");
 	//Erase the old branch
 	BI->eraseFromParent();
-	BranchInst *condBI = new BranchInst(newBB,errorBlock,newSetEQ,BBofSynchI);
-	condBI->setDUP(); //set DUP attribute
+	BranchInst *condBI = BranchInst::Create(newBB,errorBlock,newSetEQ,BBofSynchI);
+	//FIXME: unknow setDUP
+	//condBI->setDUP(); //set DUP attribute
 
 	localnuminsdup++;
 	NumInsDup++;
@@ -668,75 +673,77 @@ void InsDuplica::DuplicaBr(BasicBlock *BB, Instruction *LastCond, BranchInst *BI
 //newBBinsert()                  //
 ///////////////////////////////////
 BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, BasicBlock *thisBB,BasicBlock *nextBB, bool trueSide) {
-    std::string sidetag = (trueSide)? "T":"F";
-    std::string newName = thisBB->getName().str()+"_"+sidetag+"_"+nextBB->getName().str();
-    
-    BasicBlock *newBB = BasicBlock::Create(thisBB->getContext(), newName, thisBB->getParent(), nextBB);
-    
-    Instruction *myCond = dyn_cast<Instruction>(BI->getCondition());
-    assert(myCond && "BI's condition must not be trivial");
+	std::string sidetag = (trueSide)? "T":"F";
+	std::string newName = thisBB->getName().str()+"_"+sidetag+"_"+nextBB->getName().str();
 
-    Value *newCond = myCond; //by default
+	BasicBlock *newBB = BasicBlock::Create(thisBB->getContext(), newName, thisBB->getParent(), nextBB);
 
-    if (LastCond==BI) {
-	assert((isa<PHINode>(myCond) || myCond->getParent() != thisBB || !(myCond->hasOneUse())) && "if LastCond==BI, then myCond must be outside thisBB or PHI" );
-	if (valueMap.count(myCond) > 0)
-	    newCond = valueMap[myCond];
-	
-    } else {
-	//Here some assertions are not true, because the original BB has been splited by checks
-	//assert(myCond->getParent() == thisBB && "if LastCond!=BI, then myCond must be inside BB");
-	assert(myCond==LastCond && "if LastCond!=BI, then LastCond = myCond");
-	//assert(myCond->getNext()==BI && "if LastCond!=BI, then myCond must be in front of BI");
+	Instruction *myCond = dyn_cast<Instruction>(BI->getCondition());
+	assert(myCond && "BI's condition must not be trivial");
 
-	if (isa<SetCondInst>(myCond)) {
-	    if (!(myCond->hasOneUse())) {
-		assert(valueMap.count(myCond)>0 && "setXX must have been replicated");
-		newCond = valueMap[myCond];
-	    } else {
-		//dup setXX in new BB
-		//Note that LastCond won't have an entry in valueMap, because it has two duplica.
-		Instruction *newCondI = LastCond->clone();
-                newCondI->setDUP(); //set DUP attribute
-		if (LastCond->hasName()) 
-		    newCondI->setName(LastCond->getName()+"_"+sidetag+"dup");
-		replaceOperands(newCondI);  // replace operands
-		newBB->getInstList().push_back(newCondI);
-		newCond = newCondI;
-		NumInsDup++;
-		localnuminsdup++;		
-	    }
+	Value *newCond = myCond; //by default
+
+	if (LastCond==BI) {
+		assert((isa<PHINode>(myCond) || myCond->getParent() != thisBB || !(myCond->hasOneUse())) && "if LastCond==BI, then myCond must be outside thisBB or PHI" );
+		if (valueMap.count(myCond) > 0)
+			newCond = valueMap[myCond];
+
+	} else {
+		//Here some assertions are not true, because the original BB has been splited by checks
+		//assert(myCond->getParent() == thisBB && "if LastCond!=BI, then myCond must be inside BB");
+		assert(myCond==LastCond && "if LastCond!=BI, then LastCond = myCond");
+		//assert(myCond->getNext()==BI && "if LastCond!=BI, then myCond must be in front of BI");
+
+		if (isa<ICmpInst>(myCond)) {
+			if (!(myCond->hasOneUse())) {
+				assert(valueMap.count(myCond)>0 && "setXX must have been replicated");
+				newCond = valueMap[myCond];
+			} else {
+				//dup setXX in new BB
+				//Note that LastCond won't have an entry in valueMap, because it has two duplica.
+				Instruction *newCondI = LastCond->clone();
+				//FIXME
+				//newCondI->setDUP(); //set DUP attribute
+				if (LastCond->hasName()) 
+					newCondI->setName(LastCond->getName()+"_"+sidetag+"dup");
+				replaceOperands(newCondI);  // replace operands
+				newBB->getInstList().push_back(newCondI);
+				newCond = newCondI;
+				NumInsDup++;
+				localnuminsdup++;		
+			}
+
+		}
 
 	}
 
-    }
+	//duplicate branch
+	BranchInst *newBI;
+	if (trueSide) 
+		newBI = BranchInst::Create(nextBB,errorBlock,newCond,newBB);
+	else
+		newBI = BranchInst::Create(errorBlock,nextBB,newCond,newBB);
 
-    //duplicate branch
-    BranchInst *newBI;
-    if (trueSide) 
-	newBI = BranchInst::Create(nextBB,errorBlock,newCond,newBB);
-    else
-	newBI = BranchInst::Create(errorBlock,nextBB,newCond,newBB);
-
-    newBI->setDUP(); // set DUP attribute
-
-
-    //if myCond is outside BB, and myCond has not been replicaed, we have to
-    //submit a update request
-    if ((myCond != LastCond) && (newCond == myCond)) {
-	if (duplicable(myCond))
-	    requestToMap(myCond,newBI);
-    }
+	//FIXME
+	//newBI->setDUP(); // set DUP attribute
 
 
-    //modify incoming sources in PhiNodes of nextBB
-    updatePHInodesBB(nextBB, thisBB, newBB);
-    
+	//if myCond is outside BB, and myCond has not been replicaed, we have to
+	//submit a update request
+	if ((myCond != LastCond) && (newCond == myCond)) {
+		if (duplicable(myCond))
+			requestToMap(myCond,newBI);
+	}
 
-    NumInsDup++;
-    localnuminsdup++;
 
-    return newBB;
+	//modify incoming sources in PhiNodes of nextBB
+	updatePHInodesBB(nextBB, thisBB, newBB);
+
+
+	NumInsDup++;
+	localnuminsdup++;
+
+	return newBB;
 }
 
 
@@ -746,24 +753,25 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
 //////////////////////////////////
 void InsDuplica::DuplicaInst(Instruction *I, Instruction *insertBefore) {
 
-    assert(duplicable(I) && "I must be duplicable");
-  
-    Instruction *newI = I->clone();
-   
-    newI->setDUP(); //this is a duplicated instruction
-    if (I->hasName()) {
-	newI->setName(I->getName() + "_dup");
-    }
-    //replicate its operands
-    replaceOperands(newI);
-    //update valueMap
-    valueMap[I]=newI;
-    //update its users
-    updateUsersMap(I,newI);
+	assert(duplicable(I) && "I must be duplicable");
 
-    I->getParent()->getInstList().insert(insertBefore,newI);
-    NumInsDup++;
-    localnuminsdup++;
+	Instruction *newI = I->clone();
+
+	//FIXME
+	//newI->setDUP(); //this is a duplicated instruction
+	if (I->hasName()) {
+		newI->setName(I->getName() + "_dup");
+	}
+	//replicate its operands
+	replaceOperands(newI);
+	//update valueMap
+	valueMap[I]=newI;
+	//update its users
+	updateUsersMap(I,newI);
+
+	I->getParent()->getInstList().insert(insertBefore,newI);
+	NumInsDup++;
+	localnuminsdup++;
 }
 
 ////////////////////////////////
@@ -968,7 +976,7 @@ Instruction *InsDuplicaTile::findNextSynchPoint (Instruction *curI, Instruction*
 //  -- store
 //  -- terminator
 bool InsDuplica::isSynchPoint (Instruction *Ins) {
-    if (isa<CallInst>(Ins) || isa<TerminatorInst>(Ins) || isa<StoreInst>(Ins) ||isa<FreeInst>(Ins) ) return true;
+    if (isa<CallInst>(Ins) || isa<TerminatorInst>(Ins) || isa<StoreInst>(Ins) /*||isa<FreeInst>(Ins) include in CallInst*/ ) return true;
     return false;
 }
 
@@ -1015,7 +1023,7 @@ Instruction* InsDuplica::findLastCond (BasicBlock *BB) {
 	Instruction* condIns = dyn_cast<Instruction>(cond); 
 	//find condIns. But we have to make sure condIns is the second to the last instruction in BB
 	assert(condIns && "Branch Condition must not be trivial");
-	if ((condIns->getNext())!=lastIns) {
+	if ((condIns->getNextNode())!=lastIns) {
 	    //assert((condIns->getParent() == BB) && "condIns is not in the same BB as br!");
 	    //if condIns is not in the same BB as br. We have to leave it there
 	    if (condIns->getParent() != BB) return lastIns;
@@ -1078,43 +1086,44 @@ bool InsDuplica::workFunc(Function &F) {
 //buildErrorBlock                 //
 ////////////////////////////////////
 BasicBlock *InsDuplica::buildErrorBlock(Function &F) {
-  //the error block is inserted at the end
-  BasicBlock *EB = new BasicBlock(F.getName()+"_Error",&F); 
+	//the error block is inserted at the end
+	LLVMContext& C = F.getContext();
+	BasicBlock *EB = BasicBlock::Create(C,F.getName()+"_Error",&F); 
 
- //insert the void exit(int) function to the module
-  std::string exitName = "exit";
-  std::vector<const Type*> ArgTys;
-  ArgTys.push_back(Type::IntTy);
-  FunctionType *exitType = FunctionType::get(Type::VoidTy, ArgTys,false);
-  Function *callfun = F.getParent()->getFunction(exitName,exitType);
- 
-  if (callfun) {
+	//insert the void exit(int) function to the module
+	std::string exitName = "exit";
+	SmallVector<Type*,2> ArgTys;
+	ArgTys.push_back(Type::getInt32Ty(C));
+	FunctionType *exitType = FunctionType::get(Type::getVoidTy(C), ArgTys,false);
+	Constant* callfun = F.getParent()->getFunction(exitName/*,exitType*/);
+
+	if (callfun) {
 #ifdef Jing_DEBUG
-      //std::cerr << "we find exit func\n";
+		//std::cerr << "we find exit func\n";
 #endif
-  }
-  else {
+	}
+	else {
 #ifdef Jing_DEBUG
-     //std::cerr << "exit(int) is not found. let's insert one\n";
+		//std::cerr << "exit(int) is not found. let's insert one\n";
 #endif
-     callfun = F.getParent()->getOrInsertFunction(exitName,exitType);
-     assert(callfun && "Failed exit() declaration insertion");
-  }
+		callfun = F.getParent()->getOrInsertFunction(exitName,exitType);
+		assert(callfun && "Failed exit() declaration insertion");
+	}
 
-  //add call Inst to EB
-  ConstantSInt *const_23 = ConstantSInt::get(Type::IntTy,-23);
-  std::string callName = "";
-  Instruction * newCall = new CallInst(callfun,const_23,callName,EB);
+	//add call Inst to EB
+	ConstantInt *const_23 = ConstantInt::get(Type::getInt32Ty(C),-23);
+	std::string callName = "";
+	Instruction * newCall = CallInst::Create(callfun,const_23,callName,EB);
 
-  /* 
-  //still has to place a dummy ret there
-  const Type *myrettype = F.getFunctionType()->getReturnType();
-  Constant *retValue = Constant::getNullValue(myrettype);
-  Instruction *dummy_ret = new ReturnInst(retValue,EB);  
-  */
-  //Now we have UnreachableInst as the terminator! neat
-  Instruction * endinst = new UnreachableInst(EB);
-  return EB;
+	/* 
+	//still has to place a dummy ret there
+	const Type *myrettype = F.getFunctionType()->getReturnType();
+	Constant *retValue = Constant::getNullValue(myrettype);
+	Instruction *dummy_ret = new ReturnInst(retValue,EB);  
+	*/
+	//Now we have UnreachableInst as the terminator! neat
+	Instruction * endinst = new UnreachableInst(C, EB);
+	return EB;
 }
 
 
@@ -1141,23 +1150,25 @@ void InsDuplica::updatePHInodesBB(BasicBlock *myBB, BasicBlock *fromBB, BasicBlo
 //dupFuncArgu()        //
 /////////////////////////
 void InsDuplica::dupFuncArgu(Function &F) {
-  BasicBlock *firstBB = F.begin();
-  Instruction *firstI = firstBB->begin();
-  for (Function::arg_iterator AI = F.arg_begin(), E = F.arg_end();
-           AI != E; ++AI) {
-	 arguSet.insert(AI);
+	BasicBlock *firstBB = F.begin();
+	Instruction *firstI = firstBB->begin();
+	for (Function::arg_iterator AI = F.arg_begin(), E = F.arg_end();
+			AI != E; ++AI) {
+		arguSet.insert(AI);
 
-	 //if argument is used only once or all on the same block,
-	 //do not dup it.
-	 if (AI->hasOneUse()) {
-	   valueMap[AI] = AI;
-	 } else {
- 	 	//make copy of cast
-	  	const Type *arguType = AI->getType();
-	 	CastInst *newCast = new CastInst(AI, arguType, AI->getName()+"_dup", firstI);
-	 	valueMap[AI] = newCast;
-     }
- }
+		//if argument is used only once or all on the same block,
+		//do not dup it.
+		if (AI->hasOneUse()) {
+			valueMap[AI] = AI;
+		} else {
+			//make copy of cast
+			Type *arguType = AI->getType();
+			//FIXME unknow signed or not
+			CastInst* newCast = CastInst::CreateIntegerCast(AI, arguType, 1, AI->getName()+"_dup", firstI);
+			//CastInst *newCast = new CastInst(AI, arguType, AI->getName()+"_dup", firstI);
+			valueMap[AI] = newCast;
+		}
+	}
 }
 
 ///////////////////////////
@@ -1172,25 +1183,23 @@ bool InsDuplica::isFuncArgu(Value *v) {
 //counterdump()           //
 ////////////////////////////
 void InsDuplica::counterdump(Function&F) {
-    std::cerr << "local generated branch checker BBs: " << localnumBBchecker <<" ("<< F.getName() <<")\n";
-    std::cerr << "local generated store checker BBs: " << localnumStorechecker <<" ("<<F.getName() <<")\n";
-    std::cerr << "local generated instructions: " << localnuminsdup << " (" << F.getName() <<")\n";
+	errs() << "local generated branch checker BBs: " << localnumBBchecker <<" ("<< F.getName() <<")\n";
+	errs() << "local generated store checker BBs: " << localnumStorechecker <<" ("<<F.getName() <<")\n";
+	errs() << "local generated instructions: " << localnuminsdup << " (" << F.getName() <<")\n";
 
-    //for redundant checkings
+	//for redundant checkings
 
-   std::cerr << "LOCAL_REDUND_CHECK "<< localnumfinalldcheck - localnumadvregcheckld <<" localnumfinalldcheck ("<<F.getName()<<")\n";
-    std::cerr << "LOCAL_REDUND_CHECK "<< localnumfinalstcheck - localnumadvregcheckst <<" localnumfinalstcheck ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumfinalbrcheck - localnumadvregcheckbr <<" localnumfinalbrcheck ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumfinalothercheck - localnumadvregcheckother <<" localnumfinalothercheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumfinalldcheck - localnumadvregcheckld <<" localnumfinalldcheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumfinalstcheck - localnumadvregcheckst <<" localnumfinalstcheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumfinalbrcheck - localnumadvregcheckbr <<" localnumfinalbrcheck ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumfinalothercheck - localnumadvregcheckother <<" localnumfinalothercheck ("<<F.getName()<<")\n";
 
-//REG_SAFE
+	//REG_SAFE
 	// for advanced register safe
-   std::cerr << "LOCAL_REDUND_CHECK "<< localnumadvregcheckld <<" localnumadvregcheckld ("<<F.getName()<<")\n";
-    std::cerr << "LOCAL_REDUND_CHECK "<< localnumadvregcheckst <<" localnumadvregcheckst ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumadvregcheckbr <<" localnumadvregcheckbr ("<<F.getName()<<")\n";
-     std::cerr << "LOCAL_REDUND_CHECK "<< localnumadvregcheckother <<" localnumadvregcheckother ("<<F.getName()<<")\n";
-
-
+	errs() << "LOCAL_REDUND_CHECK "<< localnumadvregcheckld <<" localnumadvregcheckld ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumadvregcheckst <<" localnumadvregcheckst ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumadvregcheckbr <<" localnumadvregcheckbr ("<<F.getName()<<")\n";
+	errs() << "LOCAL_REDUND_CHECK "<< localnumadvregcheckother <<" localnumadvregcheckother ("<<F.getName()<<")\n";
 }
 
 ////////////////////////////
