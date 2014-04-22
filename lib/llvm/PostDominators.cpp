@@ -11,19 +11,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/PostDominators.h"
-#include "llvm/Instructions.h"
-#include "llvm/Support/CFG.h"
-#include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/SetOperations.h"
+#include "llvm/PostDominators.h"
+#include <llvm/IR/Instructions.h>
+#include <llvm/Support/CFG.h>
+#include <llvm/ADT/DepthFirstIterator.h>
+#include <llvm/ADT/SetOperations.h>
 using namespace llvm;
 
 //===----------------------------------------------------------------------===//
 //  PostDominatorSet Implementation
 //===----------------------------------------------------------------------===//
 
-static RegisterAnalysis<PostDominatorSet>
-B("postdomset", "Post-Dominator Set Construction", true);
+static RegisterPass<PostDominatorSet>
+B("postdomset", "Post-Dominator Set Construction", true, true);
 
 // Postdominator set construction.  This converts the specified function to only
 // have a single exit node (return stmt), then calculates the post dominance
@@ -100,7 +100,7 @@ bool PostDominatorSet::runOnFunction(Function &F) {
   } while (Changed);
   return false;
 }
-
+#if 0
 //===----------------------------------------------------------------------===//
 //  ImmediatePostDominators Implementation
 //===----------------------------------------------------------------------===//
@@ -250,4 +250,4 @@ PostDominanceFrontier::calculate(const PostDominatorTree &DT,
 // stub - a dummy function to make linking work ok.
 void PostDominanceFrontier::stub() {
 }
-
+#endif

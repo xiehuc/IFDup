@@ -302,28 +302,28 @@ CheckCodeMap::getCheckCode(Instruction *I) {
 
 CheckCode *
 CheckCodeMap::newCheckCode(Instruction *I) {
-    assert((checkCodeMap.find(I) == checkCodeMap.end()) && "There already is an entry in checkCodeMap");
-    CheckCode *checkcode;
-    if (isa<LoadInst>(I)) 
-	checkcode = new CheckLoad(I);
-    else if (isa<BranchInst>(I))
-	checkcode = new CheckBranch(I);
-    else if (isa<StoreInst>(I))  {
+	assert((checkCodeMap.find(I) == checkCodeMap.end()) && "There already is an entry in checkCodeMap");
+	CheckCode *checkcode = NULL;
+	if (isa<LoadInst>(I)) 
+		checkcode = new CheckLoad(I);
+	else if (isa<BranchInst>(I))
+		checkcode = new CheckBranch(I);
+	else if (isa<StoreInst>(I))  {
 #ifdef L3_CHECK
-	checkcode = new CheckStore(I);  //- L3
+		checkcode = new CheckStore(I);  //- L3
 #endif
 #ifdef L1_CHECK
-	checkcode = new CheckCode(I);   //L1
+		checkcode = new CheckCode(I);   //L1
 #endif
-    }
-    else if (isa<CallInst>(I) || isa <ReturnInst>(I))
-	checkcode = new CheckCode(I);
-    else 
-	assert(0 && "I's type is not recognized. Can not create CheckCode for this I");
+	}
+	else if (isa<CallInst>(I) || isa <ReturnInst>(I))
+		checkcode = new CheckCode(I);
+	else 
+		assert(0 && "I's type is not recognized. Can not create CheckCode for this I");
 
-    //insert a new entry
-    checkCodeMap[I] = checkcode;
-    return checkcode;
+	//insert a new entry
+	checkCodeMap[I] = checkcode;
+	return checkcode;
 }
 
 void 

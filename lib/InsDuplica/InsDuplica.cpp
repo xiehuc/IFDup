@@ -909,30 +909,30 @@ BasicBlock* InsDuplica::DuplicaLoad(LoadInst *I, BasicBlock *BB) {
  //request from requestor, replace I with   //
  //newI in requestor's operands list        //
  /////////////////////////////////////////////
- void InsDuplica::updateUsersMap(Instruction *I, Instruction *newI) {
-     if (toAddvalueMap.count(I)) {
-	 std::list<Instruction*> *requestList = toAddvalueMap[I];
-	 for (std::list<Instruction*>::iterator iter=requestList->begin(), iend=requestList->end(); iter!=iend; ++iter) {
-	     Instruction *requester = (*iter);
+void InsDuplica::updateUsersMap(Instruction *I, Instruction *newI) {
+	if (toAddvalueMap.count(I)) {
+		std::list<Instruction*> *requestList = toAddvalueMap[I];
+		for (std::list<Instruction*>::iterator iter=requestList->begin(), iend=requestList->end(); iter!=iend; ++iter) {
+			Instruction *requester = (*iter);
 #ifdef Jing_DEBUG
-	     std::cerr << "update "<< I->getName() <<" List. requester="<<requester->getName()<<"\n";
+			std::cerr << "update "<< I->getName() <<" List. requester="<<requester->getName()<<"\n";
 #endif
-	     unsigned int numOP = requester->getNumOperands();
-	     bool find = false;
-	     for (unsigned int i=0; i<numOP; i++) {
-		 if ((requester->getOperand(i)) == I) {
-		     find = true;
-		     requester->setOperand(i,newI);
-		     break; //find one an then break;
-		 }
-	     }
-	     assert(find && "You must have found I in requester's operands list");
-	 }
-	 //remove this entry from toAddvalueMap
-	 requestList->clear();
-	 toAddvalueMap.erase(I);
-     }
- }
+			unsigned int numOP = requester->getNumOperands();
+			bool find = false;
+			for (unsigned int i=0; i<numOP; i++) {
+				if ((requester->getOperand(i)) == I) {
+					find = true;
+					requester->setOperand(i,newI);
+					break; //find one an then break;
+				}
+			}
+			assert(find && "You must have found I in requester's operands list");
+		}
+		//remove this entry from toAddvalueMap
+		requestList->clear();
+		toAddvalueMap.erase(I);
+	}
+}
 
 
 //////////////////////////////////////
