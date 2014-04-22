@@ -44,7 +44,7 @@ class DominatorBase16 : public FunctionPass {
 		std::vector<BasicBlock*> Roots;
 		const bool IsPostDominators;
 
-		inline DominatorBase16(bool isPostDom) : Roots(), IsPostDominators(isPostDom), FunctionPass(ID) {}
+		inline DominatorBase16(bool isPostDom) : FunctionPass(ID), Roots(), IsPostDominators(isPostDom) {}
 	public:
 		static char ID;
 		/// getRoots -  Return the root blocks of the current CFG.  This may include
@@ -116,7 +116,7 @@ public:
 
   /// print - Convert to human readable form
   ///
-  virtual void print(std::ostream &OS, const Module* = 0) const;
+  virtual void print(raw_ostream &OS, const Module* = 0) const;
 };
 
 //===-------------------------------------
@@ -220,7 +220,7 @@ public:
 
   /// print - Convert to human readable form
   ///
-  virtual void print(std::ostream &OS, const Module* = 0) const;
+  virtual void print(raw_ostream &OS, const Module* = 0) const;
 
   /// dominates - Return true if A dominates B.  This performs the special
   /// checks necessary if A and B are in the same basic block.
