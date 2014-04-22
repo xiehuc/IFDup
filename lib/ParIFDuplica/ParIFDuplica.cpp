@@ -12,8 +12,8 @@
 #include <llvm/ADT/Statistic.h>
 #include <llvm/Support/raw_ostream.h>
 
-#include "ShortcutDetector.h"
 #include <list>
+#include "ShortcutDetector.h"
 
 using namespace llvm;
 
