@@ -14,11 +14,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/Dominators.h"
-#include "llvm/Support/CFG.h"
-#include "llvm/Assembly/Writer.h"
-#include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/SetOperations.h"
+#include "llvm/Dominators.h"
+#include <llvm/Support/CFG.h>
+#include <llvm/Assembly/Writer.h>
+#include <llvm/ADT/DepthFirstIterator.h>
+#include <llvm/ADT/SetOperations.h>
 #include <algorithm>
 using namespace llvm;
 
@@ -43,12 +43,12 @@ using namespace llvm;
 //
 //===----------------------------------------------------------------------===//
 
-static RegisterPass<ImmediateDominators>
-C("idom", "Immediate Dominators Construction", true, true);
+static RegisterPass<ImmediateDominators16>
+C("idom16", "Immediate Dominators Construction", true, true);
 
-char DominatorBase::ID = 0;
+char DominatorBase16::ID = 0;
 
-unsigned ImmediateDominators::DFSPass(BasicBlock *V, InfoRec &VInfo,
+unsigned ImmediateDominators16::DFSPass(BasicBlock *V, InfoRec &VInfo,
                                       unsigned N) {
   VInfo.Semi = ++N;
   VInfo.Label = V;
@@ -68,7 +68,7 @@ unsigned ImmediateDominators::DFSPass(BasicBlock *V, InfoRec &VInfo,
   return N;
 }
 
-void ImmediateDominators::Compress(BasicBlock *V, InfoRec &VInfo) {
+void ImmediateDominators16::Compress(BasicBlock *V, InfoRec &VInfo) {
   BasicBlock *VAncestor = VInfo.Ancestor;
   InfoRec &VAInfo = Info[VAncestor];
   if (VAInfo.Ancestor == 0)
@@ -84,7 +84,7 @@ void ImmediateDominators::Compress(BasicBlock *V, InfoRec &VInfo) {
   VInfo.Ancestor = VAInfo.Ancestor;
 }
 
-BasicBlock *ImmediateDominators::Eval(BasicBlock *V) {
+BasicBlock *ImmediateDominators16::Eval(BasicBlock *V) {
   InfoRec &VInfo = Info[V];
 #if !BALANCE_IDOM_TREE
   // Higher-complexity but faster implementation
@@ -107,7 +107,7 @@ BasicBlock *ImmediateDominators::Eval(BasicBlock *V) {
 #endif
 }
 
-void ImmediateDominators::Link(BasicBlock *V, BasicBlock *W, InfoRec &WInfo){
+void ImmediateDominators16::Link(BasicBlock *V, BasicBlock *W, InfoRec &WInfo){
 #if !BALANCE_IDOM_TREE
   // Higher-complexity but faster implementation
   WInfo.Ancestor = V;
@@ -156,7 +156,7 @@ void ImmediateDominators::Link(BasicBlock *V, BasicBlock *W, InfoRec &WInfo){
 
 
 
-bool ImmediateDominators::runOnFunction(Function &F) {
+bool ImmediateDominators16::runOnFunction(Function &F) {
   IDoms.clear();     // Reset from the last time we were run...
   BasicBlock *Root = &F.getEntryBlock();
   Roots.clear();
@@ -212,7 +212,7 @@ bool ImmediateDominators::runOnFunction(Function &F) {
   return false;
 }
 
-void ImmediateDominatorsBase::print(std::ostream &o, const Module* ) const {
+void ImmediateDominatorsBase16::print(raw_ostream &o, const Module* ) const {
   Function *F = getRoots()[0]->getParent();
   for (Function::iterator I = F->begin(), E = F->end(); I != E; ++I) {
     o << "  Immediate Dominator For Basic Block:";
@@ -233,13 +233,13 @@ void ImmediateDominatorsBase::print(std::ostream &o, const Module* ) const {
 //  DominatorSet Implementation
 //===----------------------------------------------------------------------===//
 
-static RegisterAnalysis<DominatorSet>
-B("domset", "Dominator Set Construction", true);
+static RegisterPass<DominatorSet>
+B("domset", "Dominator Set Construction", true, true);
 
 // dominates - Return true if A dominates B.  This performs the special checks
 // necessary if A and B are in the same basic block.
 //
-bool DominatorSetBase::dominates(Instruction *A, Instruction *B) const {
+bool DominatorSetBase16::dominates(Instruction *A, Instruction *B) const {
   BasicBlock *BBA = A->getParent(), *BBB = B->getParent();
   if (BBA != BBB) return dominates(BBA, BBB);
 
@@ -267,7 +267,7 @@ bool DominatorSet::runOnFunction(Function &F) {
   assert(pred_begin(Root) == pred_end(Root) &&
          "Root node has predecessors in function!");
 
-  ImmediateDominators &ID = getAnalysis<ImmediateDominators>();
+  ImmediateDominators16 &ID = getAnalysis<ImmediateDominators16>();
   Doms.clear();
   if (Roots.empty()) return false;
 
@@ -305,10 +305,11 @@ bool DominatorSet::runOnFunction(Function &F) {
   return false;
 }
 
-void DominatorSet::stub() {}
+//FIXME
+//void DominatorSet::stub() {}
 
 namespace llvm {
-static std::ostream &operator<<(std::ostream &o,
+static raw_ostream& operator<<(raw_ostream &o,
                                 const std::set<BasicBlock*> &BBs) {
   for (std::set<BasicBlock*>::const_iterator I = BBs.begin(), E = BBs.end();
        I != E; ++I)
@@ -320,7 +321,7 @@ static std::ostream &operator<<(std::ostream &o,
 }
 }
 
-void DominatorSetBase::print(std::ostream &o, const Module* ) const {
+void DominatorSetBase16::print(raw_ostream &o, const Module* ) const {
   for (const_iterator I = begin(), E = end(); I != E; ++I) {
     o << "  DomSet For BB: ";
     if (I->first)
@@ -334,7 +335,7 @@ void DominatorSetBase::print(std::ostream &o, const Module* ) const {
 //===----------------------------------------------------------------------===//
 //  DominatorTree Implementation
 //===----------------------------------------------------------------------===//
-
+#if 0
 static RegisterAnalysis<DominatorTree>
 E("domtree", "Dominator Tree Construction", true);
 
@@ -472,4 +473,4 @@ void DominanceFrontierBase::print(std::ostream &o, const Module* ) const {
     o << " is:\t" << I->second << "\n";
   }
 }
-
+#endif
