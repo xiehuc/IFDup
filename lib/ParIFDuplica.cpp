@@ -14,7 +14,6 @@
 
 #include <list>
 #include "ShortcutDetector.h"
-#include "llvm/Dominators.h"
 
 using namespace llvm;
 

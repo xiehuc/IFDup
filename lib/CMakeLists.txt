@@ -11,8 +11,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${LLVM_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${LLVM_CPP_FLAGS}")
 
 add_library(IFDup SHARED
-	llvm/Dominators.cpp
-	llvm/PostDominators.cpp
 	ShortcutDetector.cpp
 	ParIFDuplica.cpp
 	RedundAnalysis.cpp
