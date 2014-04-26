@@ -16,6 +16,7 @@
 #include "ShortcutDetector.h"
 #include <llvm/ADT/Statistic.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Analysis/Dominators.h>
 
 using namespace llvm;
 
@@ -36,6 +37,11 @@ namespace {
 //Public interface to create the ShortcutDetector pass.
 //FunctionPass *llvm::createShortcutDetectorPass() {return new ShortcutDetectorPass(); }
 
+
+void ShortcutDetectorPass::getAnalysisUsage(AnalysisUsage &AU) const{
+   AU.addRequired<DominatorTree>();
+   AU.setPreservesAll();
+}
 
 /*Check if BB is two-way conditional branch */
 bool ShortcutDetectorPass::isTwowayBranch (BasicBlock *BB) {
@@ -91,8 +97,9 @@ bool ShortcutDetectorPass::isOnlyBranch (BasicBlock *BB) {
 
 bool ShortcutDetectorPass::isJumpBack (BasicBlock *BB, BasicBlock *Target ) {
    /*We use dominance graph to do this. Suppose the edge from BB to Target is backward, Target must be the dominator of BB, and vice versa. So we only need to check if Target dominates BB */
-   assert(dominset->isReachable(BB) && "BB should be reachable!");
-   return dominset->dominates(Target, BB);
+   DominatorTree& DT = getAnalysis<DominatorTree>();
+   assert(DT.isReachableFromEntry(BB) && "BB should be reachable!");
+   return DT.dominates(Target, BB);
 }
 
 
@@ -140,8 +147,7 @@ bool ShortcutDetectorPass::hasBackEdge(BasicBlock *BB) {
 
 /** runOnFunction*/
 bool ShortcutDetectorPass::runOnFunction(Function &F) {
-   DominatorSet &dominset_use = getAnalysis<DominatorSet>();
-   dominset = & dominset_use;
+   DominatorTree& DT = getAnalysis<DominatorTree>();
 
    /*print the information for this function*/
    localshortcut=0;
@@ -166,7 +172,7 @@ nodeset: the set of basic blocks that satisfy all of the followings
    /*Scan all basic blocks in this function and classify them into leafset, nodeset and canOnlytopset*/
    for (Function::iterator iBB = F.begin(), E=F.end(); iBB != E; ++iBB) {
       BasicBlock *BB = iBB;
-      if (!(dominset->isReachable(BB)) || !(isTwowayBranch(BB)) || (hasBackEdge(BB)) ) { 
+      if (!(DT.isReachableFromEntry(BB)) || !(isTwowayBranch(BB)) || (hasBackEdge(BB)) ) { 
          leafset.insert(BB);
       } else {
          nodeset.insert(BB);
@@ -239,7 +245,7 @@ ShortcutDetectorPass::BuildHeadNodeList(std::map<BasicBlock*,ChildrenSet*>&SCSet
 
 bool
 ShortcutDetectorPass::verify_domination(ChildrenSet* sethead) {
-   return (sethead->verify_domination(dominset));
+   return (sethead->verify_domination(getAnalysis<DominatorTree>()));
 }
 
 
@@ -250,7 +256,7 @@ ShortcutDetectorPass::verify_domination(ChildrenSet* sethead) {
 void 
 ShortcutDetectorPass::conSCSetMap(std::set<BasicBlock*> &leafset, std::set<BasicBlock*> &nodeset, std::map<BasicBlock*,ChildrenSet*> &SCSetMap) {
 
-   ChildrenSet *newChildrenSet, *leftChildrenSet, *rightChildrenSet;
+   ChildrenSet *newChildrenSet;
 
    /*Iterate over nodeset and seek for shortcut edges */
    bool changed;
@@ -658,13 +664,13 @@ ChildrenSet::dump() {
 
 
 bool 
-ChildrenSet::verify_domination(DominatorSet *dominset){
+ChildrenSet::verify_domination(DominatorTree& DT){
    assert(head && "Error: verify_domination() should only be called by head");
    std::set<ChildrenSet*>::iterator iter;
 
    for (iter=SCmidnodeset->begin(); iter!=SCmidnodeset->end(); iter++) {
       BasicBlock *childBB = (*iter)->getBB();
-      if (!(dominset->dominates(myBB, childBB))) return false;
+      if (!(DT.dominates(myBB, childBB))) return false;
    }
    return true;
 }

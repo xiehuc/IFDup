@@ -11,7 +11,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/ADT/STLExtras.h>
-#include "llvm/Dominators.h"
+#include <llvm/Analysis/Dominators.h>
 
 #include <set>
 #include <string>
@@ -189,7 +189,7 @@ class ChildrenSet {
 		bool isMomLchild() {return isMomsLchild;}
 		std::set<ChildrenSet*> *getallmidnodeset(ChildrenSet* findMidnode,ChildrenSet* pathstart, int* totalSCnum);
 		std::list<bool> *getmySCpath(ChildrenSet* findMidnode, ChildrenSet* pathstart, int lastLeft, int* mynummidnodes);     
-		bool verify_domination(DominatorSet *dominset);
+		bool verify_domination(DominatorTree& DT);
 		void dump();
 
 
@@ -211,10 +211,7 @@ class ShortcutDetectorPass : public FunctionPass {
 		static char ID;
 		virtual bool runOnFunction(Function &F);
 
-		virtual void getAnalysisUsage(AnalysisUsage &AU) const{
-			AU.addRequired<DominatorSet>();
-			AU.setPreservesAll();
-		}
+		void getAnalysisUsage(AnalysisUsage &AU) const;
 		void dumpShortcut (std::list<ChildrenSet*> &headlist);
 
 	private:
@@ -223,7 +220,6 @@ class ShortcutDetectorPass : public FunctionPass {
 		bool isJumpBack (BasicBlock *BB, BasicBlock *Target);
 		bool hasBackEdge(BasicBlock *BB);
 		int localshortcut, localSCset, localFailed;
-		DominatorSet *dominset;
 		void conSCSetMap(std::set<BasicBlock*>&, std::set<BasicBlock*>& ,std::map<BasicBlock*,ChildrenSet*>&);
 		void BuildHeadNodeList (std::map<BasicBlock*,ChildrenSet*>&, Function &);
 		void ClearUselessNodesin (std::map<BasicBlock*,ChildrenSet*>&, std::list<ChildrenSet*>&); 
