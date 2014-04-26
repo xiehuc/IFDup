@@ -5,7 +5,7 @@ include_directories(
 
 link_directories(${LLVM_LIBRARY_DIRS})
 
-add_definitions(-Wall -fPIC)
+add_definitions(-Wall -Wno-unused-variable -fPIC)
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${LLVM_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${LLVM_CPP_FLAGS}")

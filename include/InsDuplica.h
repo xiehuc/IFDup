@@ -17,8 +17,6 @@
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Module.h>
-#include <llvm/Analysis/LoopInfo.h>
-#include <llvm/Analysis/PostDominators.h>
 #include <llvm/Analysis/Dominators.h>
 
 #include "RedundOPT.h"
@@ -38,110 +36,97 @@ using namespace llvm;
 
 namespace llvm {
 
-  class InsDuplica : public FunctionPass  {
-  public:
-	  static char ID;
-	  InsDuplica():FunctionPass(ID){}
-	  virtual void getAnalysisUsage (AnalysisUsage &AU) const {
-		  AU.addRequired<PostDominatorSet>();
-		  AU.addRequired<DominatorSet>();
-		  //AU.addRequired<PostDominatorTree>();
-		  //AU.addRequired<DominatorTree>();
-		  AU.addRequired<LoopInfo>();
-	  }
+   class InsDuplica : public FunctionPass  {
+      public:
+         static char ID;
+         InsDuplica():FunctionPass(ID){}
+         void getAnalysisUsage (AnalysisUsage &AU) const ;
 
-	virtual bool runOnFunction(Function &F);
+         bool runOnFunction(Function &F);
 
-      
-  private:
-  protected:
-      int tmpld;
-      int localnuminsdup; //number of generated instructions for this function
-      int localnumBBchecker;//number of generated branch checker BBs
-      int localnumStorechecker; //number of generated store checker BBs
 
-      //for redundant check
-      int localnumfinalldcheck;
-      int localnumfinalstcheck;
-      int localnumfinalbrcheck;
-      int localnumfinalothercheck;
+      private:
+      protected:
+         int tmpld;
+         int localnuminsdup; //number of generated instructions for this function
+         int localnumBBchecker;//number of generated branch checker BBs
+         int localnumStorechecker; //number of generated store checker BBs
 
-	  //for advanced register safe
-	  int localnumadvregcheckld;
-	  int localnumadvregcheckst;
-	  int localnumadvregcheckbr;
-	  int localnumadvregcheckother;
+         //for redundant check
+         int localnumfinalldcheck;
+         int localnumfinalstcheck;
+         int localnumfinalbrcheck;
+         int localnumfinalothercheck;
 
-      BasicBlock *errorBlock;
-//      std::set<std::string> ldnameset;
+         //for advanced register safe
+         int localnumadvregcheckld;
+         int localnumadvregcheckst;
+         int localnumadvregcheckbr;
+         int localnumadvregcheckother;
 
-      void DuplicaAllBB (Function &F);
-      virtual void DuplicaBB(BasicBlock*);
-      void DuplicaBr(BasicBlock*, Instruction*, BranchInst*);
-      void DuplicaInst(Instruction*, Instruction*);
-	  BasicBlock* DuplicaLoad(LoadInst*, BasicBlock *BB);
+         BasicBlock *errorBlock;
+         //      std::set<std::string> ldnameset;
 
-      void replaceOperands(Instruction *);
-      BasicBlock * newCheckerBB(Instruction*, BranchInst*,BasicBlock*, BasicBlock*,bool);
-      BasicBlock* newCheckerSynch(Instruction*,BasicBlock*, Instruction * &nextI);
-      virtual BasicBlock *newCheckerStore(Instruction*,BasicBlock*, Instruction * &nextI);
-      BasicBlock *newOneValueChecker(Value*, Instruction*, BasicBlock*, std::string&nameTag);
+         void DuplicaAllBB (Function &F);
+         virtual void DuplicaBB(BasicBlock*);
+         void DuplicaBr(BasicBlock*, Instruction*, BranchInst*);
+         void DuplicaInst(Instruction*, Instruction*);
+         BasicBlock* DuplicaLoad(LoadInst*, BasicBlock *BB);
 
-      BasicBlock * buildErrorBlock(Function &F);
-      bool notdummyFunc(Function &F); //test if this function is dummy
-      bool workFunc(Function &F); //test if this function is in our working set
-      std::map<Value*, Value*> valueMap;
-      std::map<Instruction*, std::list<Instruction*>*> toAddvalueMap;
-      void updateUsersMap(Instruction*, Instruction*);
-      void requestToMap(Instruction*,Instruction*);
+         void replaceOperands(Instruction *);
+         BasicBlock * newCheckerBB(Instruction*, BranchInst*,BasicBlock*, BasicBlock*,bool);
+         BasicBlock* newCheckerSynch(Instruction*,BasicBlock*, Instruction * &nextI);
+         virtual BasicBlock *newCheckerStore(Instruction*,BasicBlock*, Instruction * &nextI);
+         BasicBlock *newOneValueChecker(Value*, Instruction*, BasicBlock*, std::string&nameTag);
 
-      bool duplicable(Value*);
+         BasicBlock * buildErrorBlock(Function &F);
+         bool notdummyFunc(Function &F); //test if this function is dummy
+         bool workFunc(Function &F); //test if this function is in our working set
+         std::map<Value*, Value*> valueMap;
+         std::map<Instruction*, std::list<Instruction*>*> toAddvalueMap;
+         void updateUsersMap(Instruction*, Instruction*);
+         void requestToMap(Instruction*,Instruction*);
 
-      bool isBranchCond(Instruction*);
-      Instruction *findLastCond (BasicBlock*);
+         bool duplicable(Value*);
 
-      void updatePHInodesBB(BasicBlock *, BasicBlock *, BasicBlock *);
-      BranchInst *hasConditionalBr(BasicBlock*);
+         bool isBranchCond(Instruction*);
+         Instruction *findLastCond (BasicBlock*);
 
-      void initLocalCounter();
-      void counterdump(Function&);
+         void updatePHInodesBB(BasicBlock *, BasicBlock *, BasicBlock *);
+         BranchInst *hasConditionalBr(BasicBlock*);
 
-      //   friend class InsDuplicaTile;
-      bool isSynchPoint(Instruction*);
+         void initLocalCounter();
+         void counterdump(Function&);
 
-	  std::set<Value*> arguSet;
-	  bool isFuncArgu(Value*);
-	  void dupFuncArgu(Function &F);
-      void statRegRemove(Instruction*);  // count removal checks for reg safe
+         //   friend class InsDuplicaTile;
+         bool isSynchPoint(Instruction*);
 
-    //For redundant checks analysis
-    CheckCodeMap *mycheckCodeMap;
-    ValueCheckedAtMap *myvalueCheckedAtMap;
+         std::set<Value*> arguSet;
+         bool isFuncArgu(Value*);
+         void dupFuncArgu(Function &F);
+         void statRegRemove(Instruction*);  // count removal checks for reg safe
 
-	//For advanced register safe optimization
-	SafeRegMap *safeRegMap;
+         //For redundant checks analysis
+         CheckCodeMap *mycheckCodeMap;
+         ValueCheckedAtMap *myvalueCheckedAtMap;
 
-	DominatorSet *dominset;  // pointer to DominatorSet
-	SafeRegforBB *curSafeRegs;  // safe reg sets for current BB
+         //For advanced register safe optimization
+         SafeRegMap *safeRegMap;
 
-  }; //end of class InsDuplica
+         SafeRegforBB *curSafeRegs;  // safe reg sets for current BB
 
-  class InsDuplicaTile: public InsDuplica {   
-	  protected:
-		  virtual void DuplicaBB(BasicBlock *);
-		  Instruction* findNextSynchPoint(Instruction*, Instruction*);
-  };
+   }; //end of class InsDuplica
 
-      
+   class InsDuplicaTile: public InsDuplica {   
+      protected:
+         virtual void DuplicaBB(BasicBlock *);
+         Instruction* findNextSynchPoint(Instruction*, Instruction*);
+   };
 
-#if 0
-      static Statistic NumInsDup("numinsdup", "Number of generated instructions");
-      static Statistic NumBBChecker("numBBchecker", "Number of generated branch checker BBs");
-      static Statistic NumStoreChecker("numStorechecker", "Number of generated store checker BBs");      
-#endif
 
-	
-  }//end of namespace
+}//end of namespace
 
 
 #endif  //INSDUPLICA_H
+
+// vim: ts=3 sts=3 sw=3 et
