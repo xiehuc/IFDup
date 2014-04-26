@@ -405,7 +405,9 @@ BasicBlock *InsDuplica::newCheckerStore(Instruction* synchI, BasicBlock *BB, Ins
 ///////////////////////////////////
 //newOneValueChecker()           //
 ///////////////////////////////////
-BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *synchI, BasicBlock *BBofSynchI, std::string &nameTag) {
+BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *synchI, BasicBlock *BBofSynchI, std::string &nameTag) 
+{
+   LLVMContext& C = BBofSynchI->getContext();
    assert (duplicable(ValuetoCheck) && "checked value must be duplicable");
 
 #ifdef REG_SAFE
@@ -440,7 +442,7 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
          return BBofSynchI;
 
    //new SetEQ instruction and insert it before synchI
-   CmpInst* newSetEQ = NULL;
+   Instruction* newSetEQ = NULL;
    Type* ty = ValuetoCheck->getType();
    if(ty->isIntOrIntVectorTy()||ty->isPointerTy()) /* newSetEQ */
       newSetEQ = new ICmpInst(synchI, ICmpInst::ICMP_EQ, ValuetoCheck, ValuetoCheckDup,
@@ -475,7 +477,22 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
    assert(BI && "After split, the splitted BB must have a Br as its terminator");
    //Erase the old branch
    BI->eraseFromParent();
-   BranchInst *condBI = BranchInst::Create(newBB,errorBlock,newSetEQ,BBofSynchI);
+   Instruction* Term = NULL;
+   if(ty->isVectorTy()){
+      /**
+       * since setcc hasbeen removed, we extract value one by one and 'and' them
+       * if result is 1 means all value is 1, so it means equal, so we can branch it.
+       */
+      APInt Idx(32, 0);
+      Instruction* elemx = ExtractElementInst::Create(newSetEQ, ConstantInt::get(C, Idx), "elem", BBofSynchI);
+      for(int i=1;i<ty->getVectorNumElements();i++){
+         ++Idx;
+         Value* elemy = ExtractElementInst::Create(newSetEQ, ConstantInt::get(C, Idx), "elem", BBofSynchI);
+         elemx = BinaryOperator::CreateAnd(elemx, elemy, "aggregation", BBofSynchI);
+      }
+      newSetEQ = elemx;
+   }
+   Term = BranchInst::Create(newBB,errorBlock,newSetEQ,BBofSynchI);
    //FIXME: unknow setDUP
    //condBI->setDUP(); //set DUP attribute
 
