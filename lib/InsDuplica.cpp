@@ -721,7 +721,7 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
       assert(myCond==LastCond && "if LastCond!=BI, then LastCond = myCond");
       //assert(myCond->getNext()==BI && "if LastCond!=BI, then myCond must be in front of BI");
 
-      if (isa<ICmpInst>(myCond)) {
+      if (isa<CmpInst>(myCond)) {
          if (!(myCond->hasOneUse())) {
             assert(valueMap.count(myCond)>0 && "setXX must have been replicated");
             newCond = valueMap[myCond];
@@ -729,7 +729,7 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
             //dup setXX in new BB
             //Note that LastCond won't have an entry in valueMap, because it has two duplica.
             Instruction *newCondI = LastCond->clone();
-            //FIXME
+            //FIXME : xiehuc unknow set DUP
             //newCondI->setDUP(); //set DUP attribute
             if (LastCond->hasName()) 
                newCondI->setName(LastCond->getName()+"_"+sidetag+"dup");
