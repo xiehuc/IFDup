@@ -13,15 +13,15 @@ using namespace llvm;
 void lock_inst(Instruction *I){
     if (LoadInst* LI=dyn_cast<LoadInst>(I)){
 	Value* argu[6];
+	argu[0]=&(LI->getPointerOperand());
 	if(LI->isAtomic())
-	    argu[0]=true;
-	else
-	    argu[0]=false;
-	if(LI->isVolatile())
 	    argu[1]=true;
 	else
-	    arg[1]=false;
-	argu[2]=&(LI->getPointerOperand());
+	    argu[1]=false;
+	if(LI->isVolatile())
+	    argu[2]=true;
+	else
+	    arg[2]=false;
 	argu[3]=&(LI->getAlignment());
 	argu[4]=&(LI->getOrdering());
 	argu[5]=&(LI->getSynchScope());
@@ -32,13 +32,13 @@ void lock_inst(Instruction *I){
 	//tmp->setCalledFunction(New);
 	I=tmp;
     }
-    else if(StoreInst* SI=syn_cast<StoreInst>(I)){
+    else if(StoreInst* SI=dyn_cast<StoreInst>(I)){
     
     }
-    else if(CmpInst* CI=syn_cast<CmpInst>(I)){
+    else if(CmpInst* CI=dyn_cast<CmpInst>(I)){
 
     }
-    else if(BinaryOperator* BI=syn_cast<BinaryOperator>(I)){
+    else if(BinaryOperator* BI=dyn_cast<BinaryOperator>(I)){
     	
     }
 }
@@ -52,10 +52,10 @@ void unlock_inst(Instruction *I){
 	
 	if(fname.equals("lock.load")){
 	    //list<value*>::iterator i=arglist.begin();
-	    LoadInst* LI=new LoadInst(**(i+2));
-	    if(**i==true)
+	    LoadInst* LI=new LoadInst(**(i));
+	    if(**(i+1)==true)
 		LI->setAtomic(**(i+4),**(i+5));
-	    LI->setVolatile(**(i+1));
+	    LI->setVolatile(**(i+2));
 	    LI->setAlignment(**(i+3));
 	    I=LI;
 	}	    
