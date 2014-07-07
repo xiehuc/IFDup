@@ -5,7 +5,7 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
 
-#include <debug.h>
+//#include <debug.h>
 #include <list>
 using namespace std;
 using namespace llvm;
@@ -27,6 +27,7 @@ char Lock::ID=0;
 static RegisterPass<Lock> X("Lock","Lock and Unlock the instructions");
 bool Lock::runOnModule(Module& M)
 {
+
 
 }
 
