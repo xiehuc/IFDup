@@ -26,21 +26,38 @@ string judgeType(Type* ty)
 
     if(tyid==14)
     {
-       tyid=ty->getPointerElementType()->getTypeID();
-       name=getString(tyid)+"p.";
+       Type* tmp=ty;
+       while(tyid == 14)
+       {
+          tmp=tmp->getPointerElementType();
+          tyid=tmp->getTypeID();
+          name+="p";
+       }
+       if(tyid==10)
+          name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
+    }
+    else if(tyid==10)
+    {
+       name=name+getString(tyid)+getString(ty->getPrimitiveSizeInBits());
     }
     else
-       name=getString(tyid)+".";
+       name=getString(tyid);
     return name;
 }
 string getFuncName(Instruction* I,SmallVector<Type*,8>& opty)
 {
     string funcname="";
-    funcname+=judgeType(I->getType());
-    for(unsigned i=0;i < opty.size();i++)
+    unsigned size=opty.size();
+    if(size>0)
+       funcname+=judgeType(I->getType())+".";
+    else
+       funcname+=judgeType(I->getType());
+    unsigned i;
+    for(i=0;i < size-1;i++)
     {
-        funcname+=judgeType(opty[i]);
+        funcname+=(judgeType(opty[i])+".");
     }
+    funcname+=judgeType(opty[i]);
     return funcname;
 }
 void Lock::lock_inst(Instruction *I)
