@@ -15,5 +15,5 @@ add_library(IFDup SHARED
 	ParIFDuplica.cpp
 	RedundAnalysis.cpp
 	InsDuplica.cpp
-	lock.cpp
+   LockInst.cpp
 	)
