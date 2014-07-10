@@ -4,7 +4,6 @@
 //  Must Include this File After All #include
 //**********************************************
 
-#include "config.h"
 #include <llvm/Support/raw_ostream.h>
 
 #ifdef ENABLE_DEBUG

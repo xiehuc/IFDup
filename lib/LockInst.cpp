@@ -11,6 +11,8 @@
 
 #include <sstream>
 
+#include "debug.h"
+
 using namespace std;
 using namespace llvm;
 
@@ -165,7 +167,7 @@ void Unlock::unlock_inst(Instruction* I)
       LoadInst* LI=new LoadInst(OpArgs[0],"",I);
       for(unsigned i = 0; i < MDNodes.size(); i++){
          SmallVector<StringRef, 10> tmp;
-         errs()<<names[MDNodes[i].first].str()<<"\n";
+         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
          names[MDNodes[i].first].split(tmp,".");
          //cerr<<tmp[0]<<"\t"<<endl;
          if(tmp[0].str()=="volatile")
@@ -187,10 +189,8 @@ void Unlock::unlock_inst(Instruction* I)
         // MDNodes[i].second->replaceOperandWith(MDNodes[i].first,UndefValue::get(I->getOperand(i)->getType()));
       I->removeFromParent();
       //cerr<<endl;
-      errs()<<"found lock.\t"<<cname<<"\n";
+      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
    }
-   else
-      errs()<<"not found lock.\n";
 }
 
 #ifdef ENABLE_DEBUG
