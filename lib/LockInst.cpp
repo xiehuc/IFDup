@@ -6,6 +6,7 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/IR/LLVMContext.h>
+#include <llvm/Support/raw_ostream.h>
 #include <sstream>
 #include <iostream>
 #include <list>
@@ -49,14 +50,11 @@ string judgeType(Type* ty)
 }
 
 //Get the name of function in  CallInst
-string getFuncName(Instruction* I,SmallVector<Type*,8>& opty)
+static string getFuncName(Instruction* I,SmallVector<Type*,8>& opty)
 {
    string funcname="";
    unsigned size=opty.size();
-   if(size>0)
-      funcname+=judgeType(I->getType())+".";
-   else
-      funcname+=judgeType(I->getType());
+   funcname+=judgeType(I->getType())+((size>0)?".":"");
    unsigned i;
    for(i=0;i < size-1;i++){
       funcname+=(judgeType(opty[i])+".");
@@ -144,26 +142,9 @@ bool Unlock::runOnModule(Module &M)
    return false;
 }
 
-SmallVector<string, 10> str_split(string str,string pattern)
-{
-   string::size_type pos;
-   SmallVector<string, 10> result;
-   str+=pattern;
-   unsigned size=str.size();
-   for(unsigned i = 0; i < size; i++){
-      pos=str.find(pattern, i);
-      if(pos < size){
-         string s = str.substr(i,pos-i);
-         result.push_back(s);
-         i=pos+pattern.size()-1;
-      }
-   }
-   return result;
-}
 void Unlock::unlock_inst(Instruction* I)
 {
    LLVMContext& C = I->getContext();
-   Module* M = I->getParent()->getParent()->getParent();
    CallInst* CI=cast<CallInst>(I);
    SmallVector<Type*, 8>OpTypes;
    SmallVector<Value*, 8>OpArgs;
@@ -177,21 +158,20 @@ void Unlock::unlock_inst(Instruction* I)
    CI->getAllMetadata(MDNodes);
    SmallVector<StringRef, 30> names; 
    C.getMDKindNames(names);
-   Instruction* T = NULL;
    if(cname.find("lock.load") < cname.length()){
       LoadInst* LI=new LoadInst(OpArgs[0],"",I);
-      SmallVector<string, 10> tmp;
+      SmallVector<StringRef, 10> tmp;
       for(unsigned i = 0; i < MDNodes.size(); i++){
          // cerr<<names[MDNodes[i].first].str()<<endl;
-         tmp=str_split(names[MDNodes[i].first].str(),".");
+         names[MDNodes[i].first].split(tmp,".");
          //cerr<<tmp[0]<<"\t"<<endl;
          if(tmp[0]=="volatile")
             LI->setVolatile(true);
          else if(tmp[0]=="atomic"){
-            LI->setAtomic((AtomicOrdering)(atoi(tmp[1].c_str())));
+            LI->setAtomic((AtomicOrdering)(atoi(tmp[1].str().c_str())));
          }
          else if(tmp[0]=="align")
-            LI->setAlignment(atoi(tmp[1].c_str()));
+            LI->setAlignment(atoi(tmp[1].str().c_str()));
          else
             LI->setMetadata(MDNodes[i].first, MDNodes[i].second);
       }
@@ -205,32 +185,8 @@ void Unlock::unlock_inst(Instruction* I)
       I->removeFromParent();
       //F->removeFromParent();
       //cerr<<endl;
-      //cerr<<"found lock.\t"<<cname<<endl;
-      T=LI;
+      errs()<<"found lock.\t"<<cname<<"\n";
    }
    else
-      cerr<<"not found lock."<<endl;
+      errs()<<"not found lock.\n";
 }
-/*
-   void Lock::unlock_inst(Instruction *I)
-   {
-   if (CallInst* CI=dyn_cast<CallInst>(I))
-   {
-   Function* tmp=CI->getCalledFunction();
-   Type::param_iterator i=tmp->getFunctionType().param_begin();
-   string fname=tmp->getName().str();
-//list<value> arglist=tmp->getArgumentList();
-
-if(fname.equals("lock.load"))
-{
-//list<value*>::iterator i=arglist.begin();
-LoadInst* LI=new LoadInst(**(i));
-if(**(i+1)==true)
-LI->setAtomic(**(i+4),**(i+5));
-LI->setVolatile(**(i+2));
-LI->setAlignment(**(i+3));
-I=LI;
-}	    
-}
-}
-*/
