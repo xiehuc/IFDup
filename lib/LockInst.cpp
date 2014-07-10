@@ -29,18 +29,18 @@ string getString(int tmp)
 string judgeType(Type* ty)
 {
    string name="";
-   unsigned tyid=ty->getTypeID();
-   if(tyid==14){
+   Type::TypeID tyid=ty->getTypeID();
+   if(tyid==Type::PointerTyID){
       Type* tmp=ty;
-      while(tyid == 14){
+      while(tyid == Type::PointerTyID){
          tmp=tmp->getPointerElementType();
          tyid=tmp->getTypeID();
          name+="p";
       }
-      if(tyid==10)
+      if(tyid==Type::IntegerTyID)
          name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
    }
-   else if(tyid==10){
+   else if(tyid==Type::IntegerTyID){
       name=name+getString(tyid)+getString(ty->getPrimitiveSizeInBits());
    }
    else

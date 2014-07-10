@@ -16,5 +16,16 @@ class Lock:public llvm::ModulePass
 	void lock_inst(llvm::Instruction* I);
 };
 
-
+class Unlock:public llvm::ModulePass
+{
+   public:
+	static char ID;
+	Unlock():ModulePass(ID){}
+	void getAnalysisUsage(llvm::AnalysisUsage& AU) const
+	{
+	    AU.setPreservesAll();
+	}
+	bool runOnModule(llvm::Module& M);
+	void unlock_inst(llvm::Instruction* I);
+};
 #endif
