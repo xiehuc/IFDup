@@ -1,13 +1,16 @@
 #include "LockInst.h"
 #include <llvm/Pass.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
-#include <llvm/IR/LLVMContext.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/InstIterator.h>
+
 #include <sstream>
+
 using namespace std;
 using namespace llvm;
 
@@ -17,7 +20,7 @@ static RegisterPass<Lock> X("Lock","Lock the instructions");
 static RegisterPass<Unlock> Y("Unlock","Unlock the locked instructions");
 
 /*将整形转化成string类型*/
-string getString(int tmp)
+static string getString(int tmp)
 {
    stringstream newstr;
    newstr<<tmp;
@@ -25,7 +28,7 @@ string getString(int tmp)
 }
 
 /*判断参数类型*/
-string judgeType(Type* ty)
+static string judgeType(Type* ty)
 {
    string name="";
    Type::TypeID tyid=ty->getTypeID();
@@ -35,18 +38,6 @@ string judgeType(Type* ty)
       tyid=tmp->getTypeID();
       name+="p";
    }
-   /*
-   if(tyid==Type::PointerTyID){
-      Type* tmp=ty;
-      while(tyid == Type::PointerTyID){
-         tmp=tmp->getPointerElementType();
-         tyid=tmp->getTypeID();
-         name+="p";
-      }
-      if(tyid==Type::IntegerTyID)
-         name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
-   }
-   */
    if(tyid==Type::IntegerTyID){
       name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
    }
@@ -73,43 +64,32 @@ static string getFuncName(Instruction* I,SmallVector<Type*,8>& opty)
 void Lock::lock_inst(Instruction *I)
 {
    LLVMContext& C = I->getContext();
-   /*得到指令所在的模块*/
    Module* M = I->getParent()->getParent()->getParent();
-   /*存储操作数类型*/
    SmallVector<Type*, 8> OpTypes;
-   /*存储操作数*/
    SmallVector<Value*, 8> OpArgs;
-   /*遍历指令的操作数Instruction::op_iterator*/
    for(Instruction::op_iterator Op = I->op_begin(), E = I->op_end(); Op!=E; ++Op){
       OpTypes.push_back(Op->get()->getType());
       OpArgs.push_back(Op->get());
    }
-   /*构造函数类型FunctionType*/
    FunctionType* FT = FunctionType::get(I->getType(), OpTypes, false);
    Instruction* T = NULL;
-   /*构造metadata*/
    MDNode* LockMD = MDNode::get(C, MDString::get(C, "IFDup"));
    string nametmp=getFuncName(I,OpTypes);
-   /*将LoadInst指令转化成CallInst指令*/
    if (LoadInst* LI=dyn_cast<LoadInst>(I)){
-      /*在模块中插入函数声明*/
       Constant* Func = M->getOrInsertFunction("lock.load."+nametmp, FT);
-      /*构造CallInst指令*/
       CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
-      /*将LoadInst指令中的相应的设定存储到MetaData中*/
+
       unsigned align = LI->getAlignment();
       CI->setMetadata("align."+getString(align), LockMD);
       if(LI->isAtomic())
          CI->setMetadata("atomic."+getString(LI->getOrdering()), LockMD);
       if(LI->isVolatile())
          CI->setMetadata("volatile", LockMD);
-      /*用CallInst的返回值将所有用到LoadInst返回值的地方进行替换*/
       I->replaceAllUsesWith(CI);
+      
       /*将LoadInst指令的操作数设为UndefValue，不进行这个操作的话remove指令会出错*/
       for(unsigned i =0;i < I->getNumOperands();i++)
-      {
          I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
-      }
       /*删除LoadInst指令*/
       I->removeFromParent();
       T = CI;
@@ -132,20 +112,8 @@ void Lock::lock_inst(Instruction *I)
 }
 
 
-#include <llvm/Support/InstIterator.h>
 bool Lock::runOnModule(Module &M)
 {
-   /*遍历模块中所有的指令*/
-   for(Module::iterator F = M.begin(), FE = M.end(); F!=FE; ++F){
-      inst_iterator I = inst_begin(F);
-      /*之后涉及到删除指令的操作，影响遍历的结果，写成while循环的形式*/
-      while(I!=inst_end(F)){
-         Instruction* self = &*I;
-         I++;
-         if(isa<LoadInst>(self))
-            lock_inst(self);
-      }
-   }
    return false;
 }
 bool Unlock::runOnModule(Module &M)
@@ -155,13 +123,14 @@ bool Unlock::runOnModule(Module &M)
       inst_iterator I = inst_begin(F);
       while(I!=inst_end(F)){
          Instruction* self = &*I;
+         // step first, to void memory crash
          I++;
          if(isa<CallInst>(self)){
             unlock_inst(self);
          }
       }
    }
-   /*删除函数声明*/
+   // remove empty function declare
    Module::iterator F = M.begin();
    while(F!=M.end())
    {
