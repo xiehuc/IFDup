@@ -8,8 +8,6 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/Support/raw_ostream.h>
 #include <sstream>
-#include <iostream>
-#include <list>
 using namespace std;
 using namespace llvm;
 
@@ -31,6 +29,13 @@ string judgeType(Type* ty)
 {
    string name="";
    Type::TypeID tyid=ty->getTypeID();
+   Type* tmp = ty;
+   while(tyid == Type::PointerTyID){
+      tmp=tmp->getPointerElementType();
+      tyid=tmp->getTypeID();
+      name+="p";
+   }
+   /*
    if(tyid==Type::PointerTyID){
       Type* tmp=ty;
       while(tyid == Type::PointerTyID){
@@ -41,8 +46,9 @@ string judgeType(Type* ty)
       if(tyid==Type::IntegerTyID)
          name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
    }
-   else if(tyid==Type::IntegerTyID){
-      name=name+getString(tyid)+getString(ty->getPrimitiveSizeInBits());
+   */
+   if(tyid==Type::IntegerTyID){
+      name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
    }
    else
       name=getString(tyid);
