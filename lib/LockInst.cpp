@@ -16,7 +16,7 @@ using namespace llvm;
 
 char Lock::ID=0;
 char Unlock::ID=0;
-static RegisterPass<Lock> X("Lock","Lock the instructions");
+static RegisterPass<Lock> X("Lock","provide ability to lock the instructions");
 static RegisterPass<Unlock> Y("Unlock","Unlock the locked instructions");
 
 /*将整形转化成string类型*/
@@ -192,3 +192,35 @@ void Unlock::unlock_inst(Instruction* I)
    else
       errs()<<"not found lock.\n";
 }
+
+#ifdef ENABLE_DEBUG
+class LockAll: public ModulePass
+{
+   public:
+   static char ID;
+   LockAll():ModulePass(ID) {}
+	void getAnalysisUsage(llvm::AnalysisUsage& AU) const
+	{
+	    AU.setPreservesAll();
+       AU.addRequired<Lock>();
+	}
+	bool runOnModule(llvm::Module& M)
+   {
+      Lock& L = getAnalysis<Lock>();
+      /*遍历模块中所有的指令*/
+      for(Module::iterator F = M.begin(), FE = M.end(); F!=FE; ++F){
+         inst_iterator I = inst_begin(F);
+         /*之后涉及到删除指令的操作，影响遍历的结果，写成while循环的形式*/
+         while(I!=inst_end(F)){
+            Instruction* self = &*I;
+            I++;
+            if(isa<LoadInst>(self))
+               L.lock_inst(self);
+         }
+      }
+      return true;
+   }
+};
+char LockAll::ID = 0;
+static RegisterPass<LockAll> Z("LockAll","A test pass to lock all insturctions");
+#endif
