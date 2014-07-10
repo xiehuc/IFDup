@@ -150,6 +150,7 @@ bool Lock::runOnModule(Module &M)
 }
 bool Unlock::runOnModule(Module &M)
 {
+   /*解锁被锁住的指令*/
    for(Module::iterator F = M.begin(), FE = M.end(); F!=FE; ++F){
       inst_iterator I = inst_begin(F);
       while(I!=inst_end(F)){
@@ -159,6 +160,15 @@ bool Unlock::runOnModule(Module &M)
             unlock_inst(self);
          }
       }
+   }
+   /*删除函数声明*/
+   Module::iterator F = M.begin();
+   while(F!=M.end())
+   {
+      Function* Ftmp = &*F;
+      F++;
+      if(Ftmp->getName().find("lock.")==0)
+         Ftmp->removeFromParent();
    }
    return false;
 }
@@ -207,7 +217,6 @@ void Unlock::unlock_inst(Instruction* I)
       //for(unsigned i = 0; i < MDNodes.size(); i++)
         // MDNodes[i].second->replaceOperandWith(MDNodes[i].first,UndefValue::get(I->getOperand(i)->getType()));
       I->removeFromParent();
-      //F->removeFromParent();
       //cerr<<endl;
       errs()<<"found lock.\t"<<cname<<"\n";
    }
