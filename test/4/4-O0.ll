@@ -14,17 +14,17 @@ define i32 @main() #0 {
   br label %3
 
 ; <label>:3                                       ; preds = %15, %0
-  %4 = load i32* %i, align 4
+  %4 = load volatile i32* %i
   %5 = icmp slt i32 %4, 100
   br i1 %5, label %6, label %18
 
 ; <label>:6                                       ; preds = %3
-  %7 = load i32* %i, align 4
+  %7 = load  i32* %i,  align 4
   %8 = sext i32 %7 to i64
   %9 = getelementptr inbounds [100 x i32]* %a, i32 0, i64 %8
   %10 = load i32* %9, align 4
   %11 = add nsw i32 %10, 1
-  %12 = load i32* %i, align 4
+  %12 = load volatile i32* %i, align 4
   %13 = sext i32 %12 to i64
   %14 = getelementptr inbounds [100 x i32]* %a, i32 0, i64 %13
   store i32 %11, i32* %14, align 4
