@@ -210,7 +210,8 @@ void Unlock::unlock_inst(Instruction* I)
       StoreInst* SI = new StoreInst(OpArgs[0],OpArgs[1], I);
       for(unsigned i = 0;i < MDNodes.size(); i++){
          SmallVector<StringRef, 10> tmp;
-         errs()<<names[MDNodes[i].first].str()<<"\n";
+         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+
          names[MDNodes[i].first].split(tmp,".");
          if(tmp[0].str() == "volatile")
             SI->setVolatile(true);
@@ -226,10 +227,10 @@ void Unlock::unlock_inst(Instruction* I)
          I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
       }
       I->removeFromParent();
-      errs()<<"found lock.\t"<<cname<<"\n";
+      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
    }
    else
-      errs()<<"not found lock.\n";
+      DEBUG(errs()<<"not found lock.\n");
 }
 
 #ifdef ENABLE_DEBUG
@@ -255,6 +256,10 @@ class LockAll: public ModulePass
             I++;
             if(isa<LoadInst>(self))
                L.lock_inst(self);
+            if(isa<StoreInst>(self))
+               L.lock_inst(self);
+           // if(isa<CmpInst>(self))
+            //   L.lock_inst(self);
          }
       }
       return true;
