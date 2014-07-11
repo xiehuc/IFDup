@@ -36,17 +36,17 @@ string judgeType(Type* ty)
       name+="p";
    }
    /*
-   if(tyid==Type::PointerTyID){
+      if(tyid==Type::PointerTyID){
       Type* tmp=ty;
       while(tyid == Type::PointerTyID){
-         tmp=tmp->getPointerElementType();
-         tyid=tmp->getTypeID();
-         name+="p";
+      tmp=tmp->getPointerElementType();
+      tyid=tmp->getTypeID();
+      name+="p";
       }
       if(tyid==Type::IntegerTyID)
-         name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
-   }
-   */
+      name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
+      }
+      */
    if(tyid==Type::IntegerTyID){
       name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
    }
@@ -100,29 +100,43 @@ void Lock::lock_inst(Instruction *I)
       unsigned align = LI->getAlignment();
       CI->setMetadata("align."+getString(align), LockMD);
       if(LI->isAtomic())
-         CI->setMetadata("atomic."+getString(LI->getOrdering()), LockMD);
+         CI->setMetadata("atomic."+getString(LI->getOrdering())+"."+getString(LI->getSynchScope()), LockMD);
       if(LI->isVolatile())
          CI->setMetadata("volatile", LockMD);
       /*用CallInst的返回值将所有用到LoadInst返回值的地方进行替换*/
       I->replaceAllUsesWith(CI);
-      /*将LoadInst指令的操作数设为UndefValue，不进行这个操作的话remove指令会出错*/
-      for(unsigned i =0;i < I->getNumOperands();i++)
-      {
-         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
-      }
-      /*删除LoadInst指令*/
-      I->removeFromParent();
       T = CI;
    }
    else if(StoreInst* SI=dyn_cast<StoreInst>(I)){
-
+      Constant* Func = M->getOrInsertFunction("lock.store."+nametmp, FT);
+      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      unsigned align = SI->getAlignment();
+      CI->setMetadata("align."+getString(align), LockMD);
+      if(SI->isVolatile())
+         CI->setMetadata("volatile", LockMD);
+      if(SI->isAtomic())
+         CI->setMetadata("atomic."+getString(SI->getOrdering())+"."+getString(SI->getSynchScope()), LockMD);
+      I->replaceAllUsesWith(CI);
+      T=SI;
    }
-   else if(CmpInst* CI=dyn_cast<CmpInst>(I)){
-
+   else if(CmpInst* CMI=dyn_cast<CmpInst>(I)){
+      Constant* Func = M->getOrInsertFunction("lock.cmp."+nametmp, FT);
+      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      CI->setMetadata("predicate."+getString(CMI->getPredicate()), LockMD);
+      I->replaceAllUsesWith(CI);
+      T=CI;
    }
    else if(BinaryOperator* BI=dyn_cast<BinaryOperator>(I)){
 
    }
+   /*将LoadInst指令的操作数设为UndefValue，不进行这个操作的话remove指令会出错*/
+   for(unsigned i =0;i < I->getNumOperands();i++)
+   {
+      I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+   }
+   /*删除LoadInst指令*/
+   I->removeFromParent();
+
    /*将指令I的MetaData存到T指令的MetaData中，便于后期对I指令的完整恢复*/
    SmallVector<pair<unsigned int, MDNode*>, 8> MDNodes;
    I->getAllMetadata(MDNodes);
@@ -143,6 +157,10 @@ bool Lock::runOnModule(Module &M)
          Instruction* self = &*I;
          I++;
          if(isa<LoadInst>(self))
+            lock_inst(self);
+         if(isa<StoreInst>(self))
+            lock_inst(self);
+         if(isa<CmpInst>(self))
             lock_inst(self);
       }
    }
@@ -192,7 +210,7 @@ void Unlock::unlock_inst(Instruction* I)
    SmallVector<StringRef, 30> names; 
    C.getMDKindNames(names);
    /*将Load指令解锁*/
-   if(cname.find("lock.load") < cname.length()){
+   if(cname.find("lock.load") == 0){
       LoadInst* LI=new LoadInst(OpArgs[0],"",I);
       for(unsigned i = 0; i < MDNodes.size(); i++){
          SmallVector<StringRef, 10> tmp;
@@ -202,7 +220,7 @@ void Unlock::unlock_inst(Instruction* I)
          if(tmp[0].str()=="volatile")
             LI->setVolatile(true);
          else if(tmp[0].str()=="atomic"){
-            LI->setAtomic((AtomicOrdering)(atoi(tmp[1].str().c_str())));
+            LI->setAtomic((AtomicOrdering)(atoi(tmp[1].str().c_str())), (SynchronizationScope)(atoi(tmp[2].str().c_str())));
          }
          else if(tmp[0].str()=="align")
             LI->setAlignment(atoi(tmp[1].str().c_str()));
@@ -215,9 +233,31 @@ void Unlock::unlock_inst(Instruction* I)
          I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
       }
       //for(unsigned i = 0; i < MDNodes.size(); i++)
-        // MDNodes[i].second->replaceOperandWith(MDNodes[i].first,UndefValue::get(I->getOperand(i)->getType()));
+      // MDNodes[i].second->replaceOperandWith(MDNodes[i].first,UndefValue::get(I->getOperand(i)->getType()));
       I->removeFromParent();
       //cerr<<endl;
+      errs()<<"found lock.\t"<<cname<<"\n";
+   }
+   else if(cname.find("lock.store") == 0){
+      StoreInst* SI = new StoreInst(OpArgs[0],OpArgs[1], I);
+      for(unsigned i = 0;i < MDNodes.size(); i++){
+         SmallVector<StringRef, 10> tmp;
+         errs()<<names[MDNodes[i].first].str()<<"\n";
+         names[MDNodes[i].first].split(tmp,".");
+         if(tmp[0].str() == "volatile")
+            SI->setVolatile(true);
+         else if(tmp[0].str() == "atomic")
+            SI->setAtomic((AtomicOrdering)(atoi(tmp[1].str().c_str())), (SynchronizationScope)(atoi(tmp[2].str().c_str())));
+         else if(tmp[0].str() == "align")
+            SI->setAlignment(atoi(tmp[1].str().c_str()));
+         else
+            SI->setMetadata(MDNodes[i].first, MDNodes[i].second);
+      }
+      I->replaceAllUsesWith(SI);
+      for(unsigned i = 0; i < I->getNumOperands(); i++){
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
       errs()<<"found lock.\t"<<cname<<"\n";
    }
    else
