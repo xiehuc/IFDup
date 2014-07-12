@@ -109,6 +109,19 @@ void Lock::lock_inst(Instruction *I)
       T=CI;
    }
    else if(BinaryOperator* BI=dyn_cast<BinaryOperator>(I)){
+      StringRef opCodeName=StringRef(BI->getOpcodeName());
+      //DEBUG(errs()<<"hello world!\n");
+      //DEBUG(errs()<<opCodeName.str()<<"\n");
+      Constant* Func = M->getOrInsertFunction("lock.BinaryOp."+opCodeName.str()+"."+getString(BI->getOpcode())+"."+nametmp, FT);
+      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      if(BI->hasNoUnsignedWrap())
+         CI->setMetadata("nuw", LockMD);
+      if(BI->hasNoSignedWrap())
+         CI->setMetadata("nsw", LockMD);
+      if(BI->isExact())
+         CI->setMetadata("exact", LockMD);
+      I->replaceAllUsesWith(CI);
+      T=BI;
 
    }
    /*将LoadInst指令的操作数设为UndefValue，不进行这个操作的话remove指令会出错*/
@@ -246,6 +259,27 @@ void Unlock::unlock_inst(Instruction* I)
       DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
 
    }
+   else if(cname.find("lock.BinaryOp")==0){
+      SmallVector<StringRef, 10> Opcode;
+      StringRef(cname).split(Opcode,".");
+      BinaryOperator* BI = BinaryOperator::Create((Instruction::BinaryOps)(atoi(Opcode[3].str().c_str())),OpArgs[0],OpArgs[1],"",I);
+      for(unsigned i = 0;i < MDNodes.size(); i++){
+         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+
+         if(names[MDNodes[i].first].str() == "nsw")
+            BI->setHasNoSignedWrap();
+         if(names[MDNodes[i].first].str() == "nuw")
+            BI->setHasNoUnsignedWrap();
+         if(names[MDNodes[i].first].str() == "exact")
+            BI->setIsExact();
+      }
+      I->replaceAllUsesWith(BI);
+      for(unsigned i = 0;i < I->getNumOperands(); i++){
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
+      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+   }
    else
       DEBUG(errs()<<"not found lock.\n");
 }
@@ -276,6 +310,8 @@ class LockAll: public ModulePass
             if(isa<StoreInst>(self))
                L.lock_inst(self);
             if(isa<CmpInst>(self))
+               L.lock_inst(self);
+            if(isa<BinaryOperator>(self))
                L.lock_inst(self);
          }
       }
