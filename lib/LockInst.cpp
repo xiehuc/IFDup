@@ -103,9 +103,8 @@ void Lock::lock_inst(Instruction *I)
       T=SI;
    }
    else if(CmpInst* CMI=dyn_cast<CmpInst>(I)){
-      Constant* Func = M->getOrInsertFunction("lock.cmp."+nametmp, FT);
+      Constant* Func = M->getOrInsertFunction("lock.cmp."+getString(CMI->getOpcode())+"."+getString(CMI->getPredicate())+"."+nametmp, FT);
       CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
-      CI->setMetadata("predicate."+getString(CMI->getPredicate()), LockMD);
       I->replaceAllUsesWith(CI);
       T=CI;
    }
@@ -229,6 +228,24 @@ void Unlock::unlock_inst(Instruction* I)
       I->removeFromParent();
       DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
    }
+   else if(cname.find("lock.cmp")==0){
+      SmallVector<StringRef, 10> OpandPre;
+      StringRef(cname).split(OpandPre, ".");
+      CmpInst* CMI = CmpInst::Create((Instruction::OtherOps)(atoi(OpandPre[2].str().c_str())), atoi(OpandPre[3].str().c_str()), OpArgs[0], OpArgs[1], "", I);
+
+      for(unsigned i = 0;i < MDNodes.size(); i++){
+         SmallVector<StringRef, 10>tmp; 
+         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+         CMI->setMetadata(MDNodes[i].first, MDNodes[i].second);
+      }
+      I->replaceAllUsesWith(CMI);
+      for(unsigned i = 0;i < I->getNumOperands(); i++){
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
+      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+
+   }
    else
       DEBUG(errs()<<"not found lock.\n");
 }
@@ -258,8 +275,8 @@ class LockAll: public ModulePass
                L.lock_inst(self);
             if(isa<StoreInst>(self))
                L.lock_inst(self);
-           // if(isa<CmpInst>(self))
-            //   L.lock_inst(self);
+            if(isa<CmpInst>(self))
+               L.lock_inst(self);
          }
       }
       return true;
