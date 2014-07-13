@@ -54,7 +54,7 @@ static std::string judgeType(Type* ty)
 }
 
 //get the name of CallInst
-static std::string getFuncName(Instruction* I,SmallVector<Type*,8>& opty)
+static std::string getFuncName(Instruction* I,SmallVectorImpl<Type*>& opty)
 {
    std::string funcname="";
    unsigned size=opty.size();
@@ -84,7 +84,7 @@ void Lock::lock_inst(Instruction *I)
    MDNode* LockMD = MDNode::get(C, MDString::get(C, "IFDup"));
    std::string nametmp=getFuncName(I,OpTypes);
    
-   /*Lock LoadInst*/
+   //Lock LoadInst
    if (LoadInst* LI=dyn_cast<LoadInst>(I)){
       Constant* Func = M->getOrInsertFunction("lock.load."+nametmp, FT);
       CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
@@ -99,7 +99,7 @@ void Lock::lock_inst(Instruction *I)
       T = CI;
    }
 
-   /*Lock StoreInst*/
+   //Lock StoreInst
    else if(StoreInst* SI=dyn_cast<StoreInst>(I)){
       Constant* Func = M->getOrInsertFunction("lock.store."+nametmp, FT);
       CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
@@ -113,7 +113,7 @@ void Lock::lock_inst(Instruction *I)
       T=SI;
    }
 
-   /*Lock CmpInst*/
+   //Lock CmpInst
    else if(CmpInst* CMI=dyn_cast<CmpInst>(I)){
       Constant* Func = M->getOrInsertFunction("lock.cmp."+getString(CMI->getOpcode())+"."+getString(CMI->getPredicate())+"."+nametmp, FT);
       CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
@@ -121,7 +121,7 @@ void Lock::lock_inst(Instruction *I)
       T=CI;
    }
 
-   /*Lock BinaryOperator*/
+   //Lock BinaryOperator
    else if(BinaryOperator* BI=dyn_cast<BinaryOperator>(I)){
       StringRef opCodeName=StringRef(BI->getOpcodeName());
       //DEBUG(errs()<<"hello world!\n");
@@ -138,15 +138,15 @@ void Lock::lock_inst(Instruction *I)
       T=BI;
 
    }
-   /*将LoadInst指令的操作数设为UndefValue，不进行这个操作的话remove指令会出错*/
+   //Set the operands of instruction to UndefValue, otherwise it will be wrong when using I->removeFromParent()
    for(unsigned i =0;i < I->getNumOperands();i++)
    {
       I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
    }
-   /*删除LoadInst指令*/
+   //Delete LoadInst
    I->removeFromParent();
 
-   /*将指令I的MetaData存到T指令的MetaData中，便于后期对I指令的完整恢复*/
+   //Store the metadata of I to T
    SmallVector<std::pair<unsigned int, MDNode*>, 8> MDNodes;
    I->getAllMetadata(MDNodes);
    for(unsigned I = 0; I<MDNodes.size(); ++I){
@@ -164,7 +164,6 @@ bool Lock::runOnModule(Module &M)
 //Unlock the locked Instruction
 bool Unlock::runOnModule(Module &M)
 {
-   /*解锁被锁住的指令*/
    for(Module::iterator F = M.begin(), FE = M.end(); F!=FE; ++F){
       inst_iterator I = inst_begin(F);
       while(I!=inst_end(F)){
@@ -204,15 +203,15 @@ void Unlock::unlock_inst(Instruction* I)
    Function* F=CI->getCalledFunction();
    std::string cname=F->getName().str();
 
-   /*获取CI指令的所有MetaData*/
+   //Get the metadata of CallInst
    SmallVector<std::pair<unsigned int, MDNode*>, 8> MDNodes;
    CI->getAllMetadata(MDNodes);
 
-   /*获取模块中所有MetaData的名称*/
+   //Get the names of all metadata in the Module
    SmallVector<StringRef, 30> names; 
    C.getMDKindNames(names);
 
-   /*将Load指令解锁*/
+   //Unlock the LoadInst
    if(cname.find("lock.load") == 0){
       LoadInst* LI=new LoadInst(OpArgs[0],"",I);
       for(unsigned i = 0; i < MDNodes.size(); i++){
@@ -329,11 +328,10 @@ class LockAll: public ModulePass
    {
       Lock& L = getAnalysis<Lock>();
 
-      /*遍历模块中所有的指令*/
+      //Iterate through all the instructions of the module
       for(Module::iterator F = M.begin(), FE = M.end(); F!=FE; ++F){
          inst_iterator I = inst_begin(F);
 
-         /*之后涉及到删除指令的操作，影响遍历的结果，写成while循环的形式*/
          while(I!=inst_end(F)){
             Instruction* self = &*I;
             I++;
