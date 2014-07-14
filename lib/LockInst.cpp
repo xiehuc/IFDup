@@ -1,3 +1,8 @@
+//===--LockInst.cpp-------*-C++ -*-====================//
+//The file implements the lock and unlock
+//of Instruction like LoadInst,StoreInst,
+//CmpInst and BinaryOperator.
+//=====================================================//
 #include "LockInst.h"
 #include <llvm/Pass.h>
 #include <llvm/IR/Module.h>
@@ -13,7 +18,7 @@
 
 #include "debug.h"
 
-using namespace std;
+//using namespace std;
 using namespace llvm;
 
 char Lock::ID=0;
@@ -21,18 +26,18 @@ char Unlock::ID=0;
 static RegisterPass<Lock> X("Lock","provide ability to lock the instructions");
 static RegisterPass<Unlock> Y("Unlock","Unlock the locked instructions");
 
-/*将整形转化成string类型*/
-static string getString(int tmp)
+//convert int to string
+static std::string getString(int tmp)
 {
-   stringstream newstr;
+   std::stringstream newstr;
    newstr<<tmp;
    return newstr.str();
 }
 
-/*判断参数类型*/
-static string judgeType(Type* ty)
+//judge the type of args of instruction
+static std::string judgeType(Type* ty)
 {
-   string name="";
+   std::string name="";
    Type::TypeID tyid=ty->getTypeID();
    Type* tmp = ty;
    while(tyid == Type::PointerTyID){
@@ -48,10 +53,10 @@ static string judgeType(Type* ty)
    return name;
 }
 
-/*得到CallInst指令的函数名称*/
-static string getFuncName(Instruction* I,SmallVector<Type*,8>& opty)
+//get the name of CallInst
+static std::string getFuncName(Instruction* I,SmallVectorImpl<Type*>& opty)
 {
-   string funcname="";
+   std::string funcname="";
    unsigned size=opty.size();
    funcname+=judgeType(I->getType())+((size>0)?".":"");
    unsigned i;
@@ -62,7 +67,8 @@ static string getFuncName(Instruction* I,SmallVector<Type*,8>& opty)
    return funcname;
 }
 
-/*锁指令函数，将给定的指令转成call指令*/
+//lock_inst()
+//convert the instruction to CallInst,that is the Lock of instruction
 void Lock::lock_inst(Instruction *I)
 {
    LLVMContext& C = I->getContext();
@@ -76,7 +82,9 @@ void Lock::lock_inst(Instruction *I)
    FunctionType* FT = FunctionType::get(I->getType(), OpTypes, false);
    Instruction* T = NULL;
    MDNode* LockMD = MDNode::get(C, MDString::get(C, "IFDup"));
-   string nametmp=getFuncName(I,OpTypes);
+   std::string nametmp=getFuncName(I,OpTypes);
+   
+   //Lock LoadInst
    if (LoadInst* LI=dyn_cast<LoadInst>(I)){
       Constant* Func = M->getOrInsertFunction("lock.load."+nametmp, FT);
       CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
@@ -84,29 +92,62 @@ void Lock::lock_inst(Instruction *I)
       unsigned align = LI->getAlignment();
       CI->setMetadata("align."+getString(align), LockMD);
       if(LI->isAtomic())
-         CI->setMetadata("atomic."+getString(LI->getOrdering()), LockMD);
+         CI->setMetadata("atomic."+getString(LI->getOrdering())+"."+getString(LI->getSynchScope()), LockMD);
       if(LI->isVolatile())
          CI->setMetadata("volatile", LockMD);
       I->replaceAllUsesWith(CI);
-      
-      /*将LoadInst指令的操作数设为UndefValue，不进行这个操作的话remove指令会出错*/
-      for(unsigned i =0;i < I->getNumOperands();i++)
-         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
-      /*删除LoadInst指令*/
-      I->removeFromParent();
       T = CI;
    }
+
+   //Lock StoreInst
    else if(StoreInst* SI=dyn_cast<StoreInst>(I)){
-
+      Constant* Func = M->getOrInsertFunction("lock.store."+nametmp, FT);
+      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      unsigned align = SI->getAlignment();
+      CI->setMetadata("align."+getString(align), LockMD);
+      if(SI->isVolatile())
+         CI->setMetadata("volatile", LockMD);
+      if(SI->isAtomic())
+         CI->setMetadata("atomic."+getString(SI->getOrdering())+"."+getString(SI->getSynchScope()), LockMD);
+      I->replaceAllUsesWith(CI);
+      T=SI;
    }
-   else if(CmpInst* CI=dyn_cast<CmpInst>(I)){
 
+   //Lock CmpInst
+   else if(CmpInst* CMI=dyn_cast<CmpInst>(I)){
+      Constant* Func = M->getOrInsertFunction("lock.cmp."+getString(CMI->getOpcode())+"."+getString(CMI->getPredicate())+"."+nametmp, FT);
+      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      I->replaceAllUsesWith(CI);
+      T=CI;
    }
+
+   //Lock BinaryOperator
    else if(BinaryOperator* BI=dyn_cast<BinaryOperator>(I)){
+      StringRef opCodeName=StringRef(BI->getOpcodeName());
+      //DEBUG(errs()<<"hello world!\n");
+      //DEBUG(errs()<<opCodeName.str()<<"\n");
+      Constant* Func = M->getOrInsertFunction("lock.BinaryOp."+opCodeName.str()+"."+getString(BI->getOpcode())+"."+nametmp, FT);
+      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      if(BI->hasNoUnsignedWrap())
+         CI->setMetadata("nuw", LockMD);
+      if(BI->hasNoSignedWrap())
+         CI->setMetadata("nsw", LockMD);
+      if(BI->isExact())
+         CI->setMetadata("exact", LockMD);
+      I->replaceAllUsesWith(CI);
+      T=BI;
 
    }
-   /*将指令I的MetaData存到T指令的MetaData中，便于后期对I指令的完整恢复*/
-   SmallVector<pair<unsigned int, MDNode*>, 8> MDNodes;
+   //Set the operands of instruction to UndefValue, otherwise it will be wrong when using I->removeFromParent()
+   for(unsigned i =0;i < I->getNumOperands();i++)
+   {
+      I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+   }
+   //Delete LoadInst
+   I->removeFromParent();
+
+   //Store the metadata of I to T
+   SmallVector<std::pair<unsigned int, MDNode*>, 8> MDNodes;
    I->getAllMetadata(MDNodes);
    for(unsigned I = 0; I<MDNodes.size(); ++I){
       T->setMetadata(MDNodes[I].first, MDNodes[I].second);
@@ -118,9 +159,11 @@ bool Lock::runOnModule(Module &M)
 {
    return false;
 }
+
+//runOnModule()
+//Unlock the locked Instruction
 bool Unlock::runOnModule(Module &M)
 {
-   /*解锁被锁住的指令*/
    for(Module::iterator F = M.begin(), FE = M.end(); F!=FE; ++F){
       inst_iterator I = inst_begin(F);
       while(I!=inst_end(F)){
@@ -144,6 +187,9 @@ bool Unlock::runOnModule(Module &M)
    return false;
 }
 
+//unlock_inst()
+// Unlock the given locked instruction.
+// that is changing the CallInst instruction to the original instruction
 void Unlock::unlock_inst(Instruction* I)
 {
    LLVMContext& C = I->getContext();
@@ -155,15 +201,18 @@ void Unlock::unlock_inst(Instruction* I)
       OpArgs.push_back(Op->get());
    }
    Function* F=CI->getCalledFunction();
-   string cname=F->getName().str();
-   /*获取CI指令的所有MetaData*/
-   SmallVector<pair<unsigned int, MDNode*>, 8> MDNodes;
+   std::string cname=F->getName().str();
+
+   //Get the metadata of CallInst
+   SmallVector<std::pair<unsigned int, MDNode*>, 8> MDNodes;
    CI->getAllMetadata(MDNodes);
-   /*获取模块中所有MetaData的名称*/
+
+   //Get the names of all metadata in the Module
    SmallVector<StringRef, 30> names; 
    C.getMDKindNames(names);
-   /*将Load指令解锁*/
-   if(cname.find("lock.load") < cname.length()){
+
+   //Unlock the LoadInst
+   if(cname.find("lock.load") == 0){
       LoadInst* LI=new LoadInst(OpArgs[0],"",I);
       for(unsigned i = 0; i < MDNodes.size(); i++){
          SmallVector<StringRef, 10> tmp;
@@ -173,7 +222,7 @@ void Unlock::unlock_inst(Instruction* I)
          if(tmp[0].str()=="volatile")
             LI->setVolatile(true);
          else if(tmp[0].str()=="atomic"){
-            LI->setAtomic((AtomicOrdering)(atoi(tmp[1].str().c_str())));
+            LI->setAtomic((AtomicOrdering)(atoi(tmp[1].str().c_str())), (SynchronizationScope)(atoi(tmp[2].str().c_str())));
          }
          else if(tmp[0].str()=="align")
             LI->setAlignment(atoi(tmp[1].str().c_str()));
@@ -186,11 +235,82 @@ void Unlock::unlock_inst(Instruction* I)
          I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
       }
       //for(unsigned i = 0; i < MDNodes.size(); i++)
-        // MDNodes[i].second->replaceOperandWith(MDNodes[i].first,UndefValue::get(I->getOperand(i)->getType()));
+      // MDNodes[i].second->replaceOperandWith(MDNodes[i].first,UndefValue::get(I->getOperand(i)->getType()));
       I->removeFromParent();
       //cerr<<endl;
       DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
    }
+   
+   //unlock the store
+   else if(cname.find("lock.store") == 0){
+      StoreInst* SI = new StoreInst(OpArgs[0],OpArgs[1], I);
+      for(unsigned i = 0;i < MDNodes.size(); i++){
+         SmallVector<StringRef, 10> tmp;
+         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+
+         names[MDNodes[i].first].split(tmp,".");
+         if(tmp[0].str() == "volatile")
+            SI->setVolatile(true);
+         else if(tmp[0].str() == "atomic")
+            SI->setAtomic((AtomicOrdering)(atoi(tmp[1].str().c_str())), (SynchronizationScope)(atoi(tmp[2].str().c_str())));
+         else if(tmp[0].str() == "align")
+            SI->setAlignment(atoi(tmp[1].str().c_str()));
+         else
+            SI->setMetadata(MDNodes[i].first, MDNodes[i].second);
+      }
+      I->replaceAllUsesWith(SI);
+      for(unsigned i = 0; i < I->getNumOperands(); i++){
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
+      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+   }
+
+   //Unlock the cmp
+   else if(cname.find("lock.cmp")==0){
+      SmallVector<StringRef, 10> OpandPre;
+      StringRef(cname).split(OpandPre, ".");
+      CmpInst* CMI = CmpInst::Create((Instruction::OtherOps)(atoi(OpandPre[2].str().c_str())), atoi(OpandPre[3].str().c_str()), OpArgs[0], OpArgs[1], "", I);
+
+      for(unsigned i = 0;i < MDNodes.size(); i++){
+         SmallVector<StringRef, 10>tmp; 
+         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+         CMI->setMetadata(MDNodes[i].first, MDNodes[i].second);
+      }
+      I->replaceAllUsesWith(CMI);
+      for(unsigned i = 0;i < I->getNumOperands(); i++){
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
+      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+
+   }
+
+   //Unlock the BinaryOperator
+   //like add,mul,sub,etc
+   else if(cname.find("lock.BinaryOp")==0){
+      SmallVector<StringRef, 10> Opcode;
+      StringRef(cname).split(Opcode,".");
+      BinaryOperator* BI = BinaryOperator::Create((Instruction::BinaryOps)(atoi(Opcode[3].str().c_str())),OpArgs[0],OpArgs[1],"",I);
+      for(unsigned i = 0;i < MDNodes.size(); i++){
+         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+
+         if(names[MDNodes[i].first].str() == "nsw")
+            BI->setHasNoSignedWrap();
+         if(names[MDNodes[i].first].str() == "nuw")
+            BI->setHasNoUnsignedWrap();
+         if(names[MDNodes[i].first].str() == "exact")
+            BI->setIsExact();
+      }
+      I->replaceAllUsesWith(BI);
+      for(unsigned i = 0;i < I->getNumOperands(); i++){
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
+      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+   }
+   else
+      DEBUG(errs()<<"not found lock.\n");
 }
 
 #ifdef ENABLE_DEBUG
@@ -199,22 +319,29 @@ class LockAll: public ModulePass
    public:
    static char ID;
    LockAll():ModulePass(ID) {}
-	void getAnalysisUsage(llvm::AnalysisUsage& AU) const
-	{
+   void getAnalysisUsage(llvm::AnalysisUsage& AU) const
+   {
 	    AU.setPreservesAll();
        AU.addRequired<Lock>();
 	}
-	bool runOnModule(llvm::Module& M)
+   bool runOnModule(llvm::Module& M)
    {
       Lock& L = getAnalysis<Lock>();
-      /*遍历模块中所有的指令*/
+
+      //Iterate through all the instructions of the module
       for(Module::iterator F = M.begin(), FE = M.end(); F!=FE; ++F){
          inst_iterator I = inst_begin(F);
-         /*之后涉及到删除指令的操作，影响遍历的结果，写成while循环的形式*/
+
          while(I!=inst_end(F)){
             Instruction* self = &*I;
             I++;
             if(isa<LoadInst>(self))
+               L.lock_inst(self);
+            if(isa<StoreInst>(self))
+               L.lock_inst(self);
+            if(isa<CmpInst>(self))
+               L.lock_inst(self);
+            if(isa<BinaryOperator>(self))
                L.lock_inst(self);
          }
       }
