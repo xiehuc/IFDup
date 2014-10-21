@@ -22,6 +22,9 @@
 
 #include <set>
 
+//Add header file. by haomeng
+#include "LockInst.h"
+
 STATISTIC(NumInsDup, "Number of generated instructions");
 STATISTIC(NumBBChecker, "Number of generated branch checker BBs");
 STATISTIC(NumStoreChecker, "Number of generated store checker BBs");      
@@ -38,6 +41,9 @@ namespace {
 //////////////////////////////
 
 char InsDuplica::ID = 0;
+
+//Set up a Lock. by haomeng
+Lock* LockIns = new Lock();
 
 
 void InsDuplica::getAnalysisUsage (AnalysisUsage &AU) const 
@@ -453,6 +459,9 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
             ValuetoCheck->getName()+nameTag);
    //FIXME: xiehuc unknow setDUPmethod
    //newSetEQ->setDUP(); //set DUP attribute
+
+   //Lock the newSetEQ. by haomeng
+   LockIns->lock_inst(newSetEQ);
    localnuminsdup++;
    NumInsDup++;
 
@@ -497,6 +506,9 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
    Term = BranchInst::Create(newBB,errorBlock,newSetEQ,BBofSynchI);
    //FIXME: unknow setDUP
    //condBI->setDUP(); //set DUP attribute
+
+   //Lock the Term. by haomeng
+   LockIns->lock_inst(Term);
 
    localnuminsdup++;
    NumInsDup++;
@@ -739,6 +751,10 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
             replaceOperands(newCondI);  // replace operands
             newBB->getInstList().push_back(newCondI);
             newCond = newCondI;
+
+            //Lock the newCond. by haomeng
+            LockIns->lock_inst(newCondI);
+
             NumInsDup++;
             localnuminsdup++;		
          }
@@ -771,6 +787,9 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
    updatePHInodesBB(nextBB, thisBB, newBB);
 
 
+   //Lock the newBI. by haomeng
+   LockIns->lock_inst(newBI);
+
    NumInsDup++;
    localnuminsdup++;
 
@@ -802,6 +821,9 @@ void InsDuplica::DuplicaInst(Instruction *I, Instruction *insertBefore) {
 
    //haomeng find insert
    I->getParent()->getInstList().insert(insertBefore,newI);
+
+   //Lock the newI. by haomeng
+   LockIns->lock_inst(newI);
    NumInsDup++;
    localnuminsdup++;
 }
@@ -846,8 +868,14 @@ BasicBlock* InsDuplica::DuplicaLoad(LoadInst *I, BasicBlock *BB) {
    I->getParent()->getInstList().insert(I->getNext(),newI);
    valueMap[I]=newI;
    updateUsersMap(I,newI);
+
+   //Lock the newI. by haomeng
+   LockIns->lock_inst(newI);
    //
 #endif
+
+   //Lock the newI. by haomeng
+   //LockIns->lock_inst(newI);
 
    NumInsDup++;
    localnuminsdup++;
