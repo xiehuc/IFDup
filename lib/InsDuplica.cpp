@@ -73,8 +73,8 @@ bool InsDuplica::runOnFunction(Function &F) {
 #ifdef REG_SAFE
       redundAnalysisPass.enableCheckADVRegSafe(&DT);
 #endif
-      //	redundAnalysisPass.removeOverlap(mycheckCodeMap,myvalueCheckedAtMap,F,postDominSet);
-      //	redundAnalysisPass.rmLoopIV(mycheckCodeMap,myvalueCheckedAtMap,F,loopinfo);
+      // redundAnalysisPass.removeOverlap(mycheckCodeMap,myvalueCheckedAtMap,F,postDominSet);
+      // redundAnalysisPass.rmLoopIV(mycheckCodeMap,myvalueCheckedAtMap,F,loopinfo);
 
 #ifdef REG_SAFE
       //this pass is only for stat purpose. This only counts the checks for
@@ -442,6 +442,7 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
          return BBofSynchI;
 
    //new SetEQ instruction and insert it before synchI
+   //haomeng find insert
    Instruction* newSetEQ = NULL;
    Type* ty = ValuetoCheck->getType();
    if(ty->isIntOrIntVectorTy()||ty->isPointerTy()) /* newSetEQ */
@@ -492,6 +493,7 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
       }
       newSetEQ = elemx;
    }
+   //haomeng find insert
    Term = BranchInst::Create(newBB,errorBlock,newSetEQ,BBofSynchI);
    //FIXME: unknow setDUP
    //condBI->setDUP(); //set DUP attribute
@@ -728,6 +730,7 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
          } else {
             //dup setXX in new BB
             //Note that LastCond won't have an entry in valueMap, because it has two duplica.
+            //haomeng find insert
             Instruction *newCondI = LastCond->clone();
             //FIXME : xiehuc unknow set DUP
             //newCondI->setDUP(); //set DUP attribute
@@ -745,6 +748,7 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
    }
 
    //duplicate branch
+   //haomeng find insert
    BranchInst *newBI;
    if (trueSide) 
       newBI = BranchInst::Create(nextBB,errorBlock,newCond,newBB);
@@ -796,6 +800,7 @@ void InsDuplica::DuplicaInst(Instruction *I, Instruction *insertBefore) {
    //update its users
    updateUsersMap(I,newI);
 
+   //haomeng find insert
    I->getParent()->getInstList().insert(insertBefore,newI);
    NumInsDup++;
    localnuminsdup++;
@@ -835,6 +840,7 @@ BasicBlock* InsDuplica::DuplicaLoad(LoadInst *I, BasicBlock *BB) {
 #else
    // Comment for Register Safe
    //dup I - backend generator will convert this load to a move
+   //haomeng find insert
    Instruction *newI = I->clone();
    newI->setName(I->getName() + "_dup");
    I->getParent()->getInstList().insert(I->getNext(),newI);
@@ -1191,6 +1197,7 @@ void InsDuplica::dupFuncArgu(Function &F) {
          //make copy of cast
          Type *arguType = AI->getType();
          //FIXME unknow signed or not
+         //haomeng find insert ???
          CastInst* newCast = CastInst::CreateIntegerCast(AI, arguType, 1, AI->getName()+"_dup", firstI);
          //CastInst *newCast = new CastInst(AI, arguType, AI->getName()+"_dup", firstI);
          valueMap[AI] = newCast;
