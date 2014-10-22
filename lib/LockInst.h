@@ -17,7 +17,7 @@ class Lock:public llvm::ModulePass
 	    AU.setPreservesAll();
 	}
 	bool runOnModule(llvm::Module& M);
-	void lock_inst(llvm::Instruction* I);
+   llvm::Instruction* lock_inst(llvm::Instruction* I);
 };
 
 /* a class used to unlock instuctions

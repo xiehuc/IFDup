@@ -69,7 +69,7 @@ static std::string getFuncName(Instruction* I,SmallVectorImpl<Type*>& opty)
 
 //lock_inst()
 //convert the instruction to CallInst,that is the Lock of instruction
-void Lock::lock_inst(Instruction *I)
+Instruction* Lock::lock_inst(Instruction *I)
 {
    LLVMContext& C = I->getContext();
    Module* M = I->getParent()->getParent()->getParent();
@@ -80,14 +80,14 @@ void Lock::lock_inst(Instruction *I)
       OpArgs.push_back(Op->get());
    }
    FunctionType* FT = FunctionType::get(I->getType(), OpTypes, false);
-   Instruction* T = NULL;
+   CallInst* CI = NULL;
    MDNode* LockMD = MDNode::get(C, MDString::get(C, "IFDup"));
    std::string nametmp=getFuncName(I,OpTypes);
    
    //Lock LoadInst
    if (LoadInst* LI=dyn_cast<LoadInst>(I)){
       Constant* Func = M->getOrInsertFunction("lock.load."+nametmp, FT);
-      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      CI = CallInst::Create(Func, OpArgs, "", I);
 
       unsigned align = LI->getAlignment();
       CI->setMetadata("align."+getString(align), LockMD);
@@ -95,30 +95,24 @@ void Lock::lock_inst(Instruction *I)
          CI->setMetadata("atomic."+getString(LI->getOrdering())+"."+getString(LI->getSynchScope()), LockMD);
       if(LI->isVolatile())
          CI->setMetadata("volatile", LockMD);
-      I->replaceAllUsesWith(CI);
-      T = CI;
    }
 
    //Lock StoreInst
    else if(StoreInst* SI=dyn_cast<StoreInst>(I)){
       Constant* Func = M->getOrInsertFunction("lock.store."+nametmp, FT);
-      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      CI = CallInst::Create(Func, OpArgs, "", I);
       unsigned align = SI->getAlignment();
       CI->setMetadata("align."+getString(align), LockMD);
       if(SI->isVolatile())
          CI->setMetadata("volatile", LockMD);
       if(SI->isAtomic())
          CI->setMetadata("atomic."+getString(SI->getOrdering())+"."+getString(SI->getSynchScope()), LockMD);
-      I->replaceAllUsesWith(CI);
-      T=SI;
    }
 
    //Lock CmpInst
    else if(CmpInst* CMI=dyn_cast<CmpInst>(I)){
       Constant* Func = M->getOrInsertFunction("lock.cmp."+getString(CMI->getOpcode())+"."+getString(CMI->getPredicate())+"."+nametmp, FT);
-      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
-      I->replaceAllUsesWith(CI);
-      T=CI;
+      CI = CallInst::Create(Func, OpArgs, "", I);
    }
 
    //Lock BinaryOperator
@@ -127,17 +121,20 @@ void Lock::lock_inst(Instruction *I)
       //DEBUG(errs()<<"hello world!\n");
       //DEBUG(errs()<<opCodeName.str()<<"\n");
       Constant* Func = M->getOrInsertFunction("lock.BinaryOp."+opCodeName.str()+"."+getString(BI->getOpcode())+"."+nametmp, FT);
-      CallInst* CI = CallInst::Create(Func, OpArgs, "", I);
+      CI = CallInst::Create(Func, OpArgs, "", I);
       if(BI->hasNoUnsignedWrap())
          CI->setMetadata("nuw", LockMD);
       if(BI->hasNoSignedWrap())
          CI->setMetadata("nsw", LockMD);
       if(BI->isExact())
          CI->setMetadata("exact", LockMD);
-      I->replaceAllUsesWith(CI);
-      T=BI;
-
+   }else if(isa<CastInst>(I)||isa<GetElementPtrInst>(I)||isa<BranchInst>(I)){
+      return I;
+   }else{
+      Assert(0, "unknow inst type"<<*I);
    }
+   I->replaceAllUsesWith(CI);
+   errs()<<"LockInst.cpp CI: "<<*CI<<"\n";
    //Set the operands of instruction to UndefValue, otherwise it will be wrong when using I->removeFromParent()
    for(unsigned i =0;i < I->getNumOperands();i++)
    {
@@ -146,12 +143,13 @@ void Lock::lock_inst(Instruction *I)
    //Delete LoadInst
    I->removeFromParent();
 
-   //Store the metadata of I to T
+   //Store the metadata of I to CI
    SmallVector<std::pair<unsigned int, MDNode*>, 8> MDNodes;
    I->getAllMetadata(MDNodes);
    for(unsigned I = 0; I<MDNodes.size(); ++I){
-      T->setMetadata(MDNodes[I].first, MDNodes[I].second);
+      CI->setMetadata(MDNodes[I].first, MDNodes[I].second);
    }
+   return CI;
 }
 
 
