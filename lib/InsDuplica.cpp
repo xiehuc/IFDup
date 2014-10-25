@@ -22,6 +22,9 @@
 
 #include <set>
 
+//Add header file. by haomeng
+#include "LockInst.h"
+
 STATISTIC(NumInsDup, "Number of generated instructions");
 STATISTIC(NumBBChecker, "Number of generated branch checker BBs");
 STATISTIC(NumStoreChecker, "Number of generated store checker BBs");      
@@ -39,12 +42,16 @@ namespace {
 
 char InsDuplica::ID = 0;
 
+//Set up a Lock. by haomeng
+//Lock* LockIns = new Lock();
+
 
 void InsDuplica::getAnalysisUsage (AnalysisUsage &AU) const 
 {
    AU.addRequired<LoopInfo>();
    AU.addRequired<DominatorTree>();
    AU.addRequired<PostDominatorTree>();
+   AU.addRequired<Lock>();
 }
 
 bool InsDuplica::runOnFunction(Function &F) {
@@ -73,8 +80,8 @@ bool InsDuplica::runOnFunction(Function &F) {
 #ifdef REG_SAFE
       redundAnalysisPass.enableCheckADVRegSafe(&DT);
 #endif
-      //	redundAnalysisPass.removeOverlap(mycheckCodeMap,myvalueCheckedAtMap,F,postDominSet);
-      //	redundAnalysisPass.rmLoopIV(mycheckCodeMap,myvalueCheckedAtMap,F,loopinfo);
+      // redundAnalysisPass.removeOverlap(mycheckCodeMap,myvalueCheckedAtMap,F,postDominSet);
+      // redundAnalysisPass.rmLoopIV(mycheckCodeMap,myvalueCheckedAtMap,F,loopinfo);
 
 #ifdef REG_SAFE
       //this pass is only for stat purpose. This only counts the checks for
@@ -408,6 +415,8 @@ BasicBlock *InsDuplica::newCheckerStore(Instruction* synchI, BasicBlock *BB, Ins
 BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *synchI, BasicBlock *BBofSynchI, std::string &nameTag) 
 {
    LLVMContext& C = BBofSynchI->getContext();
+
+   Lock& LockIns = getAnalysis<Lock>();
    assert (duplicable(ValuetoCheck) && "checked value must be duplicable");
 
 #ifdef REG_SAFE
@@ -452,6 +461,7 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
             ValuetoCheck->getName()+nameTag);
    //FIXME: xiehuc unknow setDUPmethod
    //newSetEQ->setDUP(); //set DUP attribute
+
    localnuminsdup++;
    NumInsDup++;
 
@@ -469,6 +479,11 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
       requestToMap(cast<Instruction>(ValuetoCheck), newSetEQ);
    }
 
+   //Lock the newSetEQ. by haomeng
+   //errs()<<"newSetEQ not: "<<*newSetEQ<<"\n";
+   newSetEQ=LockIns.lock_inst(newSetEQ);
+   //errs()<<"newSetEQ: "<<*newSetEQ<<"\n";
+
    //split BBofSynchI to add conditional branch
    BasicBlock *newBB = BBofSynchI->splitBasicBlock(synchI, BBofSynchI->getName()+nameTag);
 
@@ -485,7 +500,7 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
        */
       APInt Idx(32, 0);
       Instruction* elemx = ExtractElementInst::Create(newSetEQ, ConstantInt::get(C, Idx), "elem", BBofSynchI);
-      for(int i=1;i<ty->getVectorNumElements();i++){
+      for(unsigned i=1;i<ty->getVectorNumElements();i++){
          ++Idx;
          Value* elemy = ExtractElementInst::Create(newSetEQ, ConstantInt::get(C, Idx), "elem", BBofSynchI);
          elemx = BinaryOperator::CreateAnd(elemx, elemy, "aggregation", BBofSynchI);
@@ -495,6 +510,10 @@ BasicBlock *InsDuplica::newOneValueChecker(Value *ValuetoCheck, Instruction *syn
    Term = BranchInst::Create(newBB,errorBlock,newSetEQ,BBofSynchI);
    //FIXME: unknow setDUP
    //condBI->setDUP(); //set DUP attribute
+
+   //Lock the Term. by haomeng
+   LockIns.lock_inst(Term);
+   //errs()<<"Term: "<<*Term<<"\n";
 
    localnuminsdup++;
    NumInsDup++;
@@ -701,6 +720,7 @@ if (CheckCode *checkcodeforbr = mycheckCodeMap->getCheckCode(BI)) {
 ///////////////////////////////////
 BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, BasicBlock *thisBB,BasicBlock *nextBB, bool trueSide) {
    std::string sidetag = (trueSide)? "T":"F";
+   Lock& LockIns = getAnalysis<Lock>();
    std::string newName = thisBB->getName().str()+"_"+sidetag+"_"+nextBB->getName().str();
 
    BasicBlock *newBB = BasicBlock::Create(thisBB->getContext(), newName, thisBB->getParent(), nextBB);
@@ -735,7 +755,11 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
                newCondI->setName(LastCond->getName()+"_"+sidetag+"dup");
             replaceOperands(newCondI);  // replace operands
             newBB->getInstList().push_back(newCondI);
-            newCond = newCondI;
+            //newCond = newCondI;
+
+            //Lock the newCond. by haomeng
+            newCond=LockIns.lock_inst(newCondI);
+
             NumInsDup++;
             localnuminsdup++;		
          }
@@ -767,6 +791,9 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
    updatePHInodesBB(nextBB, thisBB, newBB);
 
 
+   //Lock the newBI. by haomeng
+   LockIns.lock_inst(newBI);
+
    NumInsDup++;
    localnuminsdup++;
 
@@ -781,6 +808,7 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
 void InsDuplica::DuplicaInst(Instruction *I, Instruction *insertBefore) {
 
    assert(duplicable(I) && "I must be duplicable");
+   Lock& LockIns = getAnalysis<Lock>();
 
    Instruction *newI = I->clone();
 
@@ -791,12 +819,16 @@ void InsDuplica::DuplicaInst(Instruction *I, Instruction *insertBefore) {
    }
    //replicate its operands
    replaceOperands(newI);
+   I->getParent()->getInstList().insert(insertBefore,newI);
+
+   //Lock the newI. by haomeng
+   newI = LockIns.lock_inst(newI);
+
    //update valueMap
    valueMap[I]=newI;
    //update its users
    updateUsersMap(I,newI);
 
-   I->getParent()->getInstList().insert(insertBefore,newI);
    NumInsDup++;
    localnuminsdup++;
 }
@@ -838,10 +870,16 @@ BasicBlock* InsDuplica::DuplicaLoad(LoadInst *I, BasicBlock *BB) {
    Instruction *newI = I->clone();
    newI->setName(I->getName() + "_dup");
    I->getParent()->getInstList().insert(I->getNext(),newI);
+
+   //Lock the newI. by haomeng
+   newI=LockIns.lock_inst(newI);
+   //cerr()<<"newI: "<<*newI<<"\n";
+
    valueMap[I]=newI;
    updateUsersMap(I,newI);
-   //
+
 #endif
+
 
    NumInsDup++;
    localnuminsdup++;
@@ -1191,6 +1229,7 @@ void InsDuplica::dupFuncArgu(Function &F) {
          //make copy of cast
          Type *arguType = AI->getType();
          //FIXME unknow signed or not
+         //haomeng find insert ???
          CastInst* newCast = CastInst::CreateIntegerCast(AI, arguType, 1, AI->getName()+"_dup", firstI);
          //CastInst *newCast = new CastInst(AI, arguType, AI->getName()+"_dup", firstI);
          valueMap[AI] = newCast;
