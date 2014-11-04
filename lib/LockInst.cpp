@@ -128,7 +128,26 @@ Instruction* Lock::lock_inst(Instruction *I)
          CI->setMetadata("nsw", LockMD);
       if(BI->isExact())
          CI->setMetadata("exact", LockMD);
-   }else if(isa<CastInst>(I)||isa<GetElementPtrInst>(I)||isa<BranchInst>(I)){
+   }
+   //Lock CastInst
+   else if(CastInst* Cast=dyn_cast<CastInst>(I))
+   {
+      StringRef opCodeName = StringRef(Cast->getOpcodeName());
+      Constant* Func = M->getOrInsertFunction("lock.CastInst."+opCodeName.str()+"."+getString(Cast->getOpcode())+"."+nametmp, FT);
+      CI = CallInst::Create(Func, OpArgs, "", I);
+   }
+   //Lock GetElementPtrInst
+   else if(GetElementPtrInst* GEP=dyn_cast<GetElementPtrInst>(I))
+   {
+      std::string inbounds="no-inbounds.";
+      if(GEP->isInBounds())
+      {
+         inbounds="inbounds.";
+      }
+      Constant* Func = M->getOrInsertFunction("lock.getelementptrinst."+inbounds+nametmp, FT);
+      CI = CallInst::Create(Func, OpArgs, "", I);
+   }
+   else if(isa<BranchInst>(I)||isa<PHINode>(I)){
       return I;
    }else{
       Assert(0, "unknow inst type"<<*I);
@@ -307,6 +326,45 @@ void Unlock::unlock_inst(Instruction* I)
       I->removeFromParent();
       DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
    }
+   //Unlock the CastInst
+   //like bitcast sextinst...
+   else if(cname.find("lock.CastInst")==0){
+      SmallVector<StringRef, 10> Opcode;
+      StringRef(cname).split(Opcode, ".");
+      ///DEBUG(errs()<<OpArgs.size()<<"\n");
+      //DEBUG(errs()<<*OpArgs[0]<<"\t "<<*OpArgs[1]<<"\n");
+      CastInst* Cast = CastInst::Create((Instruction::CastOps)(atoi(Opcode[3].str().c_str())), OpArgs[0],I->getType(),"",I);
+      I->replaceAllUsesWith(Cast);
+      for(unsigned i = 0;i < I->getNumOperands();i++)
+      {
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
+      DEBUG(errs()<<"found lock.\t"<<*Cast<<"\n");
+   }
+   //Unlock the GetelementPtrInst
+   else if(cname.find("lock.getelementptrinst")==0)
+   {
+      SmallVector<StringRef, 10> Opcode;
+      StringRef(cname).split(Opcode, ".");
+      Value* Ptr=OpArgs[0];
+      //DEBUG(errs()<<OpArgs.size()<<"\n");
+      OpArgs.erase(OpArgs.begin());
+      OpArgs.pop_back();//the last arg is declare the function lock.getelementptrinst...,we should delete it.
+      //DEBUG(errs()<<OpArgs.size()<<"\n");
+      ArrayRef<Value*> IdxList(OpArgs); 
+      GetElementPtrInst* GEP = GetElementPtrInst::Create(Ptr,IdxList,"" ,I);
+      if(Opcode[2].str() == "inbounds")
+         GEP->setIsInBounds();
+      I->replaceAllUsesWith(GEP);
+      for(unsigned i = 0;i < I->getNumOperands();i++)
+      {
+         I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
+      }
+      I->removeFromParent();
+      DEBUG(errs()<<"found lock.\t"<<*GEP<<"\n");
+
+   }
    else
       DEBUG(errs()<<"not found lock.\n");
 }
@@ -340,6 +398,10 @@ class LockAll: public ModulePass
             if(isa<CmpInst>(self))
                L.lock_inst(self);
             if(isa<BinaryOperator>(self))
+               L.lock_inst(self);
+            if(isa<CastInst>(self))
+               L.lock_inst(self);
+            if(isa<GetElementPtrInst>(self))
                L.lock_inst(self);
          }
       }
