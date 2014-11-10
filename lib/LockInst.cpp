@@ -48,8 +48,11 @@ static std::string judgeType(Type* ty)
    if(tyid==Type::IntegerTyID){
       name=name+getString(tyid)+getString(tmp->getPrimitiveSizeInBits());
    }
+   else if(tyid==Type::StructTyID){
+      name=name+getString(tyid)+tmp->getStructName().str();
+   }
    else
-      name=getString(tyid);
+      name=name+getString(tyid);
    return name;
 }
 
@@ -71,6 +74,9 @@ static std::string getFuncName(Instruction* I,SmallVectorImpl<Type*>& opty)
 //convert the instruction to CallInst,that is the Lock of instruction
 Instruction* Lock::lock_inst(Instruction *I)
 {
+
+   DEBUG(errs()<<"ins start: "<<*I<<"\n");
+
    LLVMContext& C = I->getContext();
    Module* M = I->getParent()->getParent()->getParent();
    SmallVector<Type*, 8> OpTypes;
@@ -79,14 +85,20 @@ Instruction* Lock::lock_inst(Instruction *I)
       OpTypes.push_back(Op->get()->getType());
       OpArgs.push_back(Op->get());
    }
-   FunctionType* FT = FunctionType::get(I->getType(), OpTypes, false);
+   
+   Type* returnType  = I->getType();
+   FunctionType* FT = FunctionType::get(returnType, OpTypes, false);
    CallInst* CI = NULL;
+   Constant* Func = NULL; 
    MDNode* LockMD = MDNode::get(C, MDString::get(C, "IFDup"));
    std::string nametmp=getFuncName(I,OpTypes);
    
+   DEBUG(errs()<<"Functin name: "<<nametmp<<"\n");
+   DEBUG(errs()<<"FunctionType: "<<*FT<<"\n");
+   DEBUG(errs()<<"ReturnType: "<<*returnType<<"\n");
    //Lock LoadInst
    if (LoadInst* LI=dyn_cast<LoadInst>(I)){
-      Constant* Func = M->getOrInsertFunction("lock.load."+nametmp, FT);
+      Func = M->getOrInsertFunction("lock.load."+nametmp, FT);
       CI = CallInst::Create(Func, OpArgs, "", I);
 
       unsigned align = LI->getAlignment();
@@ -99,7 +111,7 @@ Instruction* Lock::lock_inst(Instruction *I)
 
    //Lock StoreInst
    else if(StoreInst* SI=dyn_cast<StoreInst>(I)){
-      Constant* Func = M->getOrInsertFunction("lock.store."+nametmp, FT);
+      Func = M->getOrInsertFunction("lock.store."+nametmp, FT);
       CI = CallInst::Create(Func, OpArgs, "", I);
       unsigned align = SI->getAlignment();
       CI->setMetadata("align."+getString(align), LockMD);
@@ -111,7 +123,7 @@ Instruction* Lock::lock_inst(Instruction *I)
 
    //Lock CmpInst
    else if(CmpInst* CMI=dyn_cast<CmpInst>(I)){
-      Constant* Func = M->getOrInsertFunction("lock.cmp."+getString(CMI->getOpcode())+"."+getString(CMI->getPredicate())+"."+nametmp, FT);
+      Func = M->getOrInsertFunction("lock.cmp."+getString(CMI->getOpcode())+"."+getString(CMI->getPredicate())+"."+nametmp, FT);
       CI = CallInst::Create(Func, OpArgs, "", I);
    }
 
@@ -120,7 +132,7 @@ Instruction* Lock::lock_inst(Instruction *I)
       StringRef opCodeName=StringRef(BI->getOpcodeName());
       //DEBUG(errs()<<"hello world!\n");
       //DEBUG(errs()<<opCodeName.str()<<"\n");
-      Constant* Func = M->getOrInsertFunction("lock.BinaryOp."+opCodeName.str()+"."+getString(BI->getOpcode())+"."+nametmp, FT);
+      Func = M->getOrInsertFunction("lock.BinaryOp."+opCodeName.str()+"."+getString(BI->getOpcode())+"."+nametmp, FT);
       CI = CallInst::Create(Func, OpArgs, "", I);
       if(BI->hasNoUnsignedWrap())
          CI->setMetadata("nuw", LockMD);
@@ -133,7 +145,7 @@ Instruction* Lock::lock_inst(Instruction *I)
    else if(CastInst* Cast=dyn_cast<CastInst>(I))
    {
       StringRef opCodeName = StringRef(Cast->getOpcodeName());
-      Constant* Func = M->getOrInsertFunction("lock.CastInst."+opCodeName.str()+"."+getString(Cast->getOpcode())+"."+nametmp, FT);
+      Func = M->getOrInsertFunction("lock.CastInst."+opCodeName.str()+"."+getString(Cast->getOpcode())+"."+nametmp, FT);
       CI = CallInst::Create(Func, OpArgs, "", I);
    }
    //Lock GetElementPtrInst
@@ -144,7 +156,7 @@ Instruction* Lock::lock_inst(Instruction *I)
       {
          inbounds="inbounds.";
       }
-      Constant* Func = M->getOrInsertFunction("lock.getelementptrinst."+inbounds+nametmp, FT);
+      Func = M->getOrInsertFunction("lock.getelementptrinst."+inbounds+nametmp, FT);
       CI = CallInst::Create(Func, OpArgs, "", I);
    }
    else if(isa<BranchInst>(I)||isa<PHINode>(I)){
@@ -153,7 +165,9 @@ Instruction* Lock::lock_inst(Instruction *I)
       Assert(0, "unknow inst type"<<*I);
    }
    I->replaceAllUsesWith(CI);
-   errs()<<"LockInst.cpp CI: "<<*CI<<"\n";
+
+   DEBUG(errs()<<"Func: "<<*Func<<"\n");
+   DEBUG(errs()<<"LockInst.cpp CI: "<<*CI<<"\n\n\n");
    //Set the operands of instruction to UndefValue, otherwise it will be wrong when using I->removeFromParent()
    for(unsigned i =0;i < I->getNumOperands();i++)
    {
@@ -209,6 +223,8 @@ bool Unlock::runOnModule(Module &M)
 // that is changing the CallInst instruction to the original instruction
 void Unlock::unlock_inst(Instruction* I)
 {
+   DEBUG(errs()<<"\n\n\nthis ins start!!!\n");
+   DEBUG(errs()<<"current inst: "<<*I<<"\n");
    LLVMContext& C = I->getContext();
    CallInst* CI=cast<CallInst>(I);
    SmallVector<Type*, 8>OpTypes;
@@ -218,6 +234,7 @@ void Unlock::unlock_inst(Instruction* I)
       OpArgs.push_back(Op->get());
    }
    Function* F=CI->getCalledFunction();
+   DEBUG(errs()<<"Function: "<<*F<<"\n");
    std::string cname=F->getName().str();
 
    //Get the metadata of CallInst
@@ -227,6 +244,9 @@ void Unlock::unlock_inst(Instruction* I)
    //Get the names of all metadata in the Module
    SmallVector<StringRef, 30> names; 
    C.getMDKindNames(names);
+
+   for(unsigned i = 0;i < OpArgs.size();i++)
+      DEBUG(errs()<<"OpArgs"<<i<<": "<<*OpArgs[i]<<"\n");
 
    //Unlock the LoadInst
    if(cname.find("lock.load") == 0){
@@ -367,6 +387,7 @@ void Unlock::unlock_inst(Instruction* I)
    }
    else
       DEBUG(errs()<<"not found lock.\n");
+   DEBUG(errs()<<"this inst is over!\n");
 }
 
 #ifdef ENABLE_DEBUG
