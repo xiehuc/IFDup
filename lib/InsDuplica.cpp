@@ -748,20 +748,24 @@ BasicBlock* InsDuplica::newCheckerBB(Instruction *LastCond, BranchInst *BI, Basi
          } else {
             //dup setXX in new BB
             //Note that LastCond won't have an entry in valueMap, because it has two duplica.
-            Instruction *newCondI = LastCond->clone();
-            //FIXME : xiehuc unknow set DUP
-            //newCondI->setDUP(); //set DUP attribute
-            if (LastCond->hasName()) 
-               newCondI->setName(LastCond->getName()+"_"+sidetag+"dup");
-            replaceOperands(newCondI);  // replace operands
-            newBB->getInstList().push_back(newCondI);
-            //newCond = newCondI;
 
-            //Lock the newCond. by haomeng
-            newCond=LockIns.lock_inst(newCondI);
+            //Judge the instruction is LandingPadInst or not. by haomeng
+            if(!(isa<LandingPadInst>(LastCond))) {
+               Instruction *newCondI = LastCond->clone();
+               //FIXME : xiehuc unknow set DUP
+               //newCondI->setDUP(); //set DUP attribute
+               if (LastCond->hasName()) 
+                  newCondI->setName(LastCond->getName()+"_"+sidetag+"dup");
+               replaceOperands(newCondI);  // replace operands
+               newBB->getInstList().push_back(newCondI);
+               //newCond = newCondI;
 
-            NumInsDup++;
-            localnuminsdup++;		
+               //Lock the newCond. by haomeng
+               newCond=LockIns.lock_inst(newCondI);
+
+               NumInsDup++;
+               localnuminsdup++;		
+            }
          }
 
       }
@@ -810,27 +814,30 @@ void InsDuplica::DuplicaInst(Instruction *I, Instruction *insertBefore) {
    assert(duplicable(I) && "I must be duplicable");
    Lock& LockIns = getAnalysis<Lock>();
 
-   Instruction *newI = I->clone();
+   //Judge the instruction is LandingPadInst or not. by haomeng
+   if(!(isa<LandingPadInst>(I))) {
+      Instruction *newI = I->clone();
 
-   //FIXME
-   //newI->setDUP(); //this is a duplicated instruction
-   if (I->hasName()) {
-      newI->setName(I->getName() + "_dup");
+      //FIXME
+      //newI->setDUP(); //this is a duplicated instruction
+      if (I->hasName()) {
+         newI->setName(I->getName() + "_dup");
+      }
+      //replicate its operands
+      replaceOperands(newI);
+      I->getParent()->getInstList().insert(insertBefore,newI);
+
+      //Lock the newI. by haomeng
+      newI = LockIns.lock_inst(newI);
+
+      //update valueMap
+      valueMap[I]=newI;
+      //update its users
+      updateUsersMap(I,newI);
+
+      NumInsDup++;
+      localnuminsdup++;
    }
-   //replicate its operands
-   replaceOperands(newI);
-   I->getParent()->getInstList().insert(insertBefore,newI);
-
-   //Lock the newI. by haomeng
-   newI = LockIns.lock_inst(newI);
-
-   //update valueMap
-   valueMap[I]=newI;
-   //update its users
-   updateUsersMap(I,newI);
-
-   NumInsDup++;
-   localnuminsdup++;
 }
 
 ////////////////////////////////

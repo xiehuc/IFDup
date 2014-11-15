@@ -162,8 +162,13 @@ Instruction* Lock::lock_inst(Instruction *I)
    else if(isa<BranchInst>(I)||isa<PHINode>(I)){
       return I;
    }else{
-      Assert(0, "unknow inst type"<<*I);
+      return I;
+      //Assert(0, "unknow inst type"<<*I);
    }
+   //Debug the invoke 
+   //CI->setDoesNotReturn();
+   CI->setDoesNotThrow();
+
    I->replaceAllUsesWith(CI);
 
    DEBUG(errs()<<"Func: "<<*Func<<"\n");
@@ -201,6 +206,7 @@ bool Unlock::runOnModule(Module &M)
          Instruction* self = &*I;
          // step first, to void memory crash
          I++;
+         DEBUG(errs()<<"**************************"<<*self<<"\n");
          if(isa<CallInst>(self)){
             unlock_inst(self);
          }
@@ -213,8 +219,12 @@ bool Unlock::runOnModule(Module &M)
       Function* Ftmp = &*F;
       F++;
       if(Ftmp->getName().find("lock.")==0)
+      {
+         DEBUG(errs()<<"*********Remove Function: "<<*Ftmp<<"\n");
          Ftmp->removeFromParent();
+      }
    }
+   DEBUG(errs()<<"Remove Function Over!!!\n");
    return false;
 }
 
@@ -235,8 +245,9 @@ void Unlock::unlock_inst(Instruction* I)
    }
    Function* F=CI->getCalledFunction();
    DEBUG(errs()<<"Function: "<<*F<<"\n");
-   std::string cname=F->getName().str();
-
+   std::string cname="";
+   if(F!=NULL)
+      cname = F->getName().str();
    //Get the metadata of CallInst
    SmallVector<std::pair<unsigned int, MDNode*>, 8> MDNodes;
    CI->getAllMetadata(MDNodes);
@@ -275,7 +286,7 @@ void Unlock::unlock_inst(Instruction* I)
       // MDNodes[i].second->replaceOperandWith(MDNodes[i].first,UndefValue::get(I->getOperand(i)->getType()));
       I->removeFromParent();
       //cerr<<endl;
-      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+      DEBUG(errs()<<"found lock.\t"<<*LI<<"\n");
    }
    
    //unlock the store
@@ -300,7 +311,7 @@ void Unlock::unlock_inst(Instruction* I)
          I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
       }
       I->removeFromParent();
-      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+      DEBUG(errs()<<"found lock.\t"<<*SI<<"\n");
    }
 
    //Unlock the cmp
@@ -319,7 +330,7 @@ void Unlock::unlock_inst(Instruction* I)
          I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
       }
       I->removeFromParent();
-      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+      DEBUG(errs()<<"found lock.\t"<<*CMI<<"\n");
 
    }
 
@@ -344,7 +355,7 @@ void Unlock::unlock_inst(Instruction* I)
          I->setOperand(i, UndefValue::get(I->getOperand(i)->getType()));
       }
       I->removeFromParent();
-      DEBUG(errs()<<"found lock.\t"<<cname<<"\n");
+      DEBUG(errs()<<"found lock.\t"<<*BI<<"\n");
    }
    //Unlock the CastInst
    //like bitcast sextinst...
