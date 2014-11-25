@@ -75,7 +75,7 @@ static std::string getFuncName(Instruction* I,SmallVectorImpl<Type*>& opty)
 Instruction* Lock::lock_inst(Instruction *I)
 {
 
-   DEBUG(errs()<<"ins start: "<<*I<<"\n");
+   //DEBUG(errs()<<"ins start: "<<*I<<"\n");
 
    LLVMContext& C = I->getContext();
    Module* M = I->getParent()->getParent()->getParent();
@@ -93,9 +93,9 @@ Instruction* Lock::lock_inst(Instruction *I)
    MDNode* LockMD = MDNode::get(C, MDString::get(C, "IFDup"));
    std::string nametmp=getFuncName(I,OpTypes);
    
-   DEBUG(errs()<<"Functin name: "<<nametmp<<"\n");
-   DEBUG(errs()<<"FunctionType: "<<*FT<<"\n");
-   DEBUG(errs()<<"ReturnType: "<<*returnType<<"\n");
+   //DEBUG(errs()<<"Functin name: "<<nametmp<<"\n");
+   //DEBUG(errs()<<"FunctionType: "<<*FT<<"\n");
+   //DEBUG(errs()<<"ReturnType: "<<*returnType<<"\n");
    //Lock LoadInst
    if (LoadInst* LI=dyn_cast<LoadInst>(I)){
       Func = M->getOrInsertFunction("lock.load."+nametmp, FT);
@@ -171,7 +171,7 @@ Instruction* Lock::lock_inst(Instruction *I)
 
    I->replaceAllUsesWith(CI);
 
-   DEBUG(errs()<<"Func: "<<*Func<<"\n");
+   //DEBUG(errs()<<"Func: "<<*Func<<"\n");
    DEBUG(errs()<<"LockInst.cpp CI: "<<*CI<<"\n\n\n");
    //Set the operands of instruction to UndefValue, otherwise it will be wrong when using I->removeFromParent()
    for(unsigned i =0;i < I->getNumOperands();i++)
@@ -206,7 +206,7 @@ bool Unlock::runOnModule(Module &M)
          Instruction* self = &*I;
          // step first, to void memory crash
          I++;
-         DEBUG(errs()<<"**************************"<<*self<<"\n");
+         //DEBUG(errs()<<"**************************"<<*self<<"\n");
          if(isa<CallInst>(self)){
             unlock_inst(self);
          }
@@ -220,11 +220,11 @@ bool Unlock::runOnModule(Module &M)
       F++;
       if(Ftmp->getName().find("lock.")==0)
       {
-         DEBUG(errs()<<"*********Remove Function: "<<*Ftmp<<"\n");
+         //DEBUG(errs()<<"*********Remove Function: "<<*Ftmp<<"\n");
          Ftmp->removeFromParent();
       }
    }
-   DEBUG(errs()<<"Remove Function Over!!!\n");
+   //DEBUG(errs()<<"Remove Function Over!!!\n");
    return false;
 }
 
@@ -233,8 +233,8 @@ bool Unlock::runOnModule(Module &M)
 // that is changing the CallInst instruction to the original instruction
 void Unlock::unlock_inst(Instruction* I)
 {
-   DEBUG(errs()<<"\n\n\nthis ins start!!!\n");
-   DEBUG(errs()<<"current inst: "<<*I<<"\n");
+   //DEBUG(errs()<<"\n\n\nthis ins start!!!\n");
+   //DEBUG(errs()<<"current inst: "<<*I<<"\n");
    LLVMContext& C = I->getContext();
    CallInst* CI=cast<CallInst>(I);
    SmallVector<Type*, 8>OpTypes;
@@ -244,7 +244,7 @@ void Unlock::unlock_inst(Instruction* I)
       OpArgs.push_back(Op->get());
    }
    Function* F=CI->getCalledFunction();
-   DEBUG(errs()<<"Function: "<<*F<<"\n");
+   //DEBUG(errs()<<"Function: "<<*F<<"\n");
    std::string cname="";
    if(F!=NULL)
       cname = F->getName().str();
@@ -256,15 +256,15 @@ void Unlock::unlock_inst(Instruction* I)
    SmallVector<StringRef, 30> names; 
    C.getMDKindNames(names);
 
-   for(unsigned i = 0;i < OpArgs.size();i++)
-      DEBUG(errs()<<"OpArgs"<<i<<": "<<*OpArgs[i]<<"\n");
+   //for(unsigned i = 0;i < OpArgs.size();i++)
+   //   DEBUG(errs()<<"OpArgs"<<i<<": "<<*OpArgs[i]<<"\n");
 
    //Unlock the LoadInst
    if(cname.find("lock.load") == 0){
       LoadInst* LI=new LoadInst(OpArgs[0],"",I);
       for(unsigned i = 0; i < MDNodes.size(); i++){
          SmallVector<StringRef, 10> tmp;
-         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+         //DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
          names[MDNodes[i].first].split(tmp,".");
          //cerr<<tmp[0]<<"\t"<<endl;
          if(tmp[0].str()=="volatile")
@@ -294,7 +294,7 @@ void Unlock::unlock_inst(Instruction* I)
       StoreInst* SI = new StoreInst(OpArgs[0],OpArgs[1], I);
       for(unsigned i = 0;i < MDNodes.size(); i++){
          SmallVector<StringRef, 10> tmp;
-         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+         //DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
 
          names[MDNodes[i].first].split(tmp,".");
          if(tmp[0].str() == "volatile")
@@ -322,7 +322,7 @@ void Unlock::unlock_inst(Instruction* I)
 
       for(unsigned i = 0;i < MDNodes.size(); i++){
          SmallVector<StringRef, 10>tmp; 
-         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+         //DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
          CMI->setMetadata(MDNodes[i].first, MDNodes[i].second);
       }
       I->replaceAllUsesWith(CMI);
@@ -341,7 +341,7 @@ void Unlock::unlock_inst(Instruction* I)
       StringRef(cname).split(Opcode,".");
       BinaryOperator* BI = BinaryOperator::Create((Instruction::BinaryOps)(atoi(Opcode[3].str().c_str())),OpArgs[0],OpArgs[1],"",I);
       for(unsigned i = 0;i < MDNodes.size(); i++){
-         DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
+         //DEBUG(errs()<<names[MDNodes[i].first].str()<<"\n");
 
          if(names[MDNodes[i].first].str() == "nsw")
             BI->setHasNoSignedWrap();
